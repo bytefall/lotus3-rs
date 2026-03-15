@@ -1,0 +1,14 @@
+[package]
+name = "lotus3-rs"
+version = "0.1.0"
+authors = ["Oleg Scherbakov <scherbakov.oleg@gmail.com>"]
+edition = "2024"
+
+[dependencies]
+heapless = "0.9"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"

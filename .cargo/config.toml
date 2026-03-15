@@ -1,0 +1,10 @@
+[build]
+target = "i586-rust_dos"
+rustflags = ["-Zunstable-options"]
+
+[env]
+RUST_TARGET_PATH = { value = ".", relative = true }
+
+[unstable]
+build-std = ["core", "compiler_builtins", "alloc"]
+build-std-features = ["compiler-builtins-mem"]
