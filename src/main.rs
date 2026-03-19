@@ -2,7 +2,7 @@
 #![no_main]
 #![allow(unsafe_op_in_unsafe_fn, static_mut_refs)]
 #![allow(dead_code)]
-#![feature(alloc_error_handler, abi_x86_interrupt)]
+#![feature(alloc_error_handler)]
 
 use core::{arch::asm, panic::PanicInfo};
 

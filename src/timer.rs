@@ -53,14 +53,6 @@ pub const PIT_CH2_MODE0: u8 = 0b10_11_000_0;
 /// 0   = 16-bit binary
 pub const PIT_CH2_LATCH: u8 = 0b10_00_000_0;
 
-#[derive(Clone, Debug)]
-#[repr(C)]
-struct InterruptStackFrame {
-    ip: u16,
-    cs: u16,
-    flags: u16,
-}
-
 /// D3B6: Set INT 24h (DOS critical error handler) vector to point to sub_d3da
 pub unsafe fn set_dos_ceh() {
     asm!(
@@ -145,7 +137,19 @@ const CAPS: u8 = 0x3A;
 
 /// D445: Keyboard interrupt handler (ISR) for IRQ1 (INT 09h)
 /// https://github.com/rust-lang/rust/issues/40180
-unsafe extern "x86-interrupt" fn kbd_isr(_isf: InterruptStackFrame) {
+#[unsafe(naked)]
+unsafe extern "C" fn kbd_isr() {
+    naked_asm!(
+        "cld",
+        "pushal",
+        "call {body}",
+        "popal",
+        "iret",
+        body = sym kbd_isr_body,
+    );
+}
+
+unsafe extern "C" fn kbd_isr_body() {
     // asm!("pusha", "push ds", "push es");
     // mov ds, [cs:word_5162]
 
@@ -211,7 +215,19 @@ pub unsafe fn restore_timer() {
 }
 
 /// D508: PIT ISR
-unsafe extern "x86-interrupt" fn timer_isr(_isf: InterruptStackFrame) {
+#[unsafe(naked)]
+unsafe extern "C" fn timer_isr() {
+    naked_asm!(
+        "cld",
+        "pushal",
+        "call {body}",
+        "popal",
+        "iret",
+        body = sym timer_isr_body,
+    );
+}
+
+unsafe extern "C" fn timer_isr_body() {
     // asm!("pusha", "push ds", "push es");
     // mov ds, [cs:word_5162]
 
