@@ -1,16 +1,11 @@
-use alloc::{vec, vec::Vec};
 use core::ptr;
 
-use crate::config::{Acceleration, Race, Transmission};
+use crate::{
+    config::{Acceleration, Race, Transmission},
+    hud::VGA_HEIGHT,
+};
 
-// pub const SCREEN_OVERSCAN: usize = 16;
-pub const SCREEN_OVERSCAN: usize = 0;
-pub const SCREEN_WIDTH: usize = 320 + SCREEN_OVERSCAN;
-pub const SCREEN_HEIGHT: usize = 200;
-// pub const VGA_DBL_BUF_START: usize = SCREEN_WIDTH * 4 + SCREEN_OVERSCAN;
-pub const VGA_DBL_BUF_START: usize = 0;
-
-#[repr(packed)]
+#[repr(C, packed)]
 #[derive(Clone, Copy)]
 pub struct FarPointer {
     pub offset: u16,
@@ -387,7 +382,7 @@ pub static mut _UNUSED: u16 = 0; // 6332
 pub static mut WORD_6334: u16 = 0; // 6334
 pub static mut WORD_6336: u16 = 0; // 6336
 pub static mut WORD_6338: u16 = 0; // 6338
-pub static mut WORD_633A: u16 = SCREEN_HEIGHT as u16; // 633A
+pub static mut WORD_633A: u16 = VGA_HEIGHT as u16; // 633A
 pub static mut TRACK_NUM: Scenario = Scenario::Forest; // 633C
 pub static mut WORD_633E: u16 = 0; // 633E
 pub static mut WORD_6340: u16 = 0; // 6340
@@ -454,7 +449,6 @@ pub static mut IS_TR_MOUNTAINS: bool = false; // 63B4
 pub static mut PLAYING_DEMO: u16 = 0; // 63B6
 pub static mut IS_PAUSED: u16 = 0; // 63B8
 pub static mut WORD_63BA: u16 = 0; // 63BA
-pub static mut WORD_63BC: Vec<u8> = Vec::new(); // dw vga_dbl_buf_seg ; 63BC
 pub static mut WORD_63BE: u16 = 0; // dw arc_header_seg ; 63BE
 pub static mut DAT_FILE_HANDLE: u16 = 0; // 63C0
 pub static mut ARR_63C2: [u16; 512] = [0; 512]; // 63C2

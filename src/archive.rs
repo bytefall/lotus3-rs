@@ -1,5 +1,5 @@
 use alloc::{vec, vec::Vec};
-use core::arch::asm;
+use core::{arch::asm, mem::transmute};
 use heapless::Vec as StackVec;
 
 use crate::{
@@ -41,18 +41,17 @@ pub type Resource = StackVec<u8, RES_BUF_SIZE>;
 
 /// C9A2: Set archive file handler to the resource's position.
 pub unsafe fn arc_seek_res() -> u16 {
-    ERR_STR_PTR = core::mem::transmute(ARR4_3156.as_ptr());
+    ERR_STR_PTR = transmute(ARR4_3156.as_ptr());
     RES_KEY = [b' '; 8];
 
-    for (dst, src) in RES_KEY
-        .iter_mut()
-        .zip(ARR4_3156.iter().copied().take_while(|c| *c != 0).map(|c| {
-            if (b'a'..=b'z').contains(&c) {
-                c - b' '
-            } else {
-                c
-            }
-        }))
+    for (dst, src) in
+        RES_KEY.iter_mut().zip(
+            ARR4_3156
+                .iter()
+                .copied()
+                .take_while(|c| *c != 0)
+                .map(|c: u8| if c.is_ascii_lowercase() { c - b' ' } else { c }),
+        )
     {
         *dst = src;
     }
@@ -72,7 +71,7 @@ pub unsafe fn arc_seek_res() -> u16 {
             ))
         })
     else {
-        loc_dc60(&OPEN_ERROR);
+        loc_dc60(OPEN_ERROR);
     };
 
     let [lo, hi] = curr.to_le_bytes();
@@ -84,7 +83,11 @@ pub unsafe fn arc_seek_res() -> u16 {
 
     // INT 21h / AH = 42h - SEEK - set current file position.
     asm!(
+        "push ds",
+        "push es",
         "int 0x21",
+        "pop es",
+        "pop ds",
         in("ax") 0x4200_u16,
         in("bx") ARC_FILE_HANDLE,
         in("cx") cx,
@@ -92,7 +95,7 @@ pub unsafe fn arc_seek_res() -> u16 {
     );
 
     if get_flags() & 1 != 0 {
-        loc_dc60(&OPEN_ERROR);
+        loc_dc60(OPEN_ERROR);
     }
 
     (next - curr) << 9
@@ -127,8 +130,8 @@ const fn create_table<const N: usize>() -> [(u16, u16); N] {
 }
 
 /// CA67: Unpack the resource.
-pub fn arc_unpack_res(data: &[u8]) -> Option<Vec<u8>> {
-    let mut data = data.iter().cloned();
+pub fn arc_unpack_res(data: impl AsRef<[u8]>) -> Option<Vec<u8>> {
+    let mut data = data.as_ref().iter().cloned();
 
     let len = data.next().filter(|x| x != &0)?;
     let end = data.next()?;
@@ -172,7 +175,7 @@ pub fn arc_unpack_res(data: &[u8]) -> Option<Vec<u8>> {
             }
 
             // loc_CB2A
-            stack.push(bx);
+            stack.push(bx).unwrap();
 
             // loc_CB31
             while ax.to_le_bytes()[1] == 1 {

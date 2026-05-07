@@ -53,10 +53,7 @@ pub unsafe fn sub_a9d3() -> Option<()> {
 
     WORD_2454 = eax as u16;
     WORD_2456 = (eax >> 16) as u16;
-
-    for i in &mut RND_248E {
-        *i = eax;
-    }
+    RND_248E.fill(eax);
 
     if IS_CIRCULAR_TRACK {
         WORD_23FC = 0;
@@ -77,7 +74,7 @@ pub unsafe fn sub_a9d3() -> Option<()> {
     WORD_635E = (ax - bx) * WORD_2446 / 26_111 + bx;
     WORD_635A = 3.max(WORD_635E / 240 + 1);
 
-    NUM_OF_TRACKS = ((15.min(WORD_635E as u32 / 128) - WORD_635A as u32 + 1) * WORD_2456 as u32
+    NUM_OF_TRACKS = (((15.min(WORD_635E as u32 / 128) - WORD_635A as u32 + 1) * WORD_2456 as u32)
         >> 16) as u16
         + WORD_635A;
 
@@ -121,7 +118,7 @@ pub unsafe fn smart_crc() -> u16 {
     RND_248E[2] = val;
 
     let (val, cf) = val.overflowing_add(RND_248E[3] + cf as u32);
-    let (val, cf) = val.overflowing_add(0x44F0_2127 + cf as u32);
+    let (val, _cf) = val.overflowing_add(0x44F0_2127 + cf as u32);
     RND_248E[3] = val;
 
     WORD_6354 = (val >> 16) as u16; // get the higher word
@@ -152,7 +149,7 @@ unsafe fn crc_common(rnd: &mut [u32; 4]) -> u16 {
     rnd[2] = val;
 
     let (val, cf) = val.overflowing_add(rnd[3] + cf as u32);
-    let (val, cf) = val.overflowing_add(0xF029_3747 + cf as u32);
+    let (val, _cf) = val.overflowing_add(0xF029_3747 + cf as u32);
     rnd[3] = val;
 
     WORD_6354 = (val >> 16) as u16; // get the higher word

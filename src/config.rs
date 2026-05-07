@@ -557,17 +557,12 @@ impl Course {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub enum Model {
+    #[default]
     Esprit = 0,
     Elan = 1,
     M200 = 2,
-}
-
-impl Default for Model {
-    fn default() -> Self {
-        Self::Esprit
-    }
 }
 
 impl Model {

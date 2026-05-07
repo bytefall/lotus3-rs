@@ -1,4 +1,4 @@
-use crate::data::{SCREEN_WIDTH, VGA_DBL_BUF_START, WORD_63BC};
+use crate::hud::{VGA_DBL_BUF, VGA_WIDTH};
 
 #[derive(Clone, Copy)]
 pub struct Point {
@@ -16,7 +16,7 @@ impl Point {
     }
 
     pub fn index(&self) -> usize {
-        self.y * SCREEN_WIDTH + self.x
+        self.y * VGA_WIDTH + self.x
     }
 }
 
@@ -49,22 +49,22 @@ impl Size {
 }
 
 /// C047: Draw a sprite
-pub unsafe fn draw_sprite(data: &[u8], size: Size, pos: Point) {
-    for (dst, src) in WORD_63BC[VGA_DBL_BUF_START + pos.index()..]
-        .chunks_exact_mut(SCREEN_WIDTH)
+pub unsafe fn draw_sprite(data: impl AsRef<[u8]>, size: Size, pos: Point) {
+    for (dst, src) in VGA_DBL_BUF[pos.index()..]
+        .chunks_exact_mut(VGA_WIDTH)
         .take(size.height)
-        .zip(data.chunks_exact(size.width))
+        .zip(data.as_ref().chunks_exact(size.width))
     {
         dst[..src.len()].copy_from_slice(src);
     }
 }
 
 /// C076: Draw a single character
-pub unsafe fn draw_char(chr: u8, font: &[u8], size: Size, skip: usize) {
-    let font = &font[chr as usize * size.width * size.height..];
+pub unsafe fn draw_char(chr: u8, font: impl AsRef<[u8]>, size: Size, skip: usize) {
+    let font = &font.as_ref()[chr as usize * size.width * size.height..];
 
-    for (dst, src) in WORD_63BC[VGA_DBL_BUF_START + skip..]
-        .chunks_exact_mut(SCREEN_WIDTH)
+    for (dst, src) in VGA_DBL_BUF[skip..]
+        .chunks_exact_mut(VGA_WIDTH)
         .take(size.height)
         .zip(font.chunks_exact(size.width))
     {

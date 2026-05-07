@@ -166,15 +166,13 @@ unsafe fn sub_ae3c(bx: u16, cx: u16, dx: i16, si: &mut usize) {
 }
 
 unsafe fn sub_ae5f(bx: u16, si: &mut usize) {
-    if WORD_6366 != 0 {
-        if ((smart_crc() as u8) as i16) < 64 {
-            // loc_AE85
-            let bl = WORD_6366 as i8;
+    if WORD_6366 != 0 && ((smart_crc() as u8) as i16) < 64 {
+        // loc_AE85
+        let bl = WORD_6366 as i8;
 
-            sub_ae3c(bl.abs() as u16, 1, if bl < 0 { 1 } else { -1 }, si);
+        sub_ae3c(bl.unsigned_abs() as u16, 1, if bl < 0 { 1 } else { -1 }, si);
 
-            return;
-        }
+        return;
     }
 
     // loc_AE70
@@ -385,7 +383,7 @@ unsafe fn prep_track_signs() {
     let ch = al;
 
     let dl = 0;
-    let mut dh = 0;
+    let mut _dh = 0;
 
     let mut si = 0;
     let mut bp = 0;
@@ -454,7 +452,7 @@ unsafe fn prep_track_signs() {
             bp += 1;
         } else {
             bp = 0;
-            dh = al;
+            _dh = al;
         }
 
         // loc_B0D6
@@ -495,7 +493,7 @@ unsafe fn sub_b0fc() {
             let dl = if (ax as i16) < 0 { CL } else { BL };
 
             rec[2] = dl;
-            rec[3] = (sub_ab9a() as u8) & 3 + 17;
+            rec[3] = ((sub_ab9a() as u8) & 3) + 17;
             rec[4] = 0;
             rec[5] = 0;
 
@@ -503,7 +501,7 @@ unsafe fn sub_b0fc() {
             let dl = if (ax as i16) < 0 { CL } else { BL };
 
             rec[6] = dl;
-            rec[7] = (smart_crc() as u8) & 3 + 17;
+            rec[7] = ((smart_crc() as u8) & 3) + 17;
             rec[8] = 0;
             rec[9] = 0;
         }
@@ -524,7 +522,7 @@ unsafe fn sub_b0fc() {
 
     // loc_B197
     while si < TMP_FILE_BUF.len() {
-        let mut cx = 1;
+        let mut _cx = 1;
 
         if ((smart_crc() as u8) as u16) >= WORD_246E {
             si += 16;
@@ -536,8 +534,8 @@ unsafe fn sub_b0fc() {
 
         loop {
             let ax = smart_crc() & 0xE;
-            cx = ARR_24D4[di + ax as usize / 2];
-            bp = cx & 0xFFFC;
+            _cx = ARR_24D4[di + ax as usize / 2];
+            bp = _cx & 0xFFFC;
 
             if bp != 0 {
                 WORD_6354 = ax;
@@ -563,9 +561,9 @@ unsafe fn sub_b0fc() {
 
         // loc_B1DE:
         WORD_6362.0 = dl;
-        WORD_636A = cx as i16;
+        WORD_636A = _cx as i16;
 
-        WORD_6362.0 = match cx & 3 {
+        WORD_6362.0 = match _cx & 3 {
             1 if (WORD_6362.0 as i8) < 0 => WORD_6362.0.wrapping_neg(), // loc_B205
             2 if (WORD_6362.0 as i8) >= 0 => WORD_6362.0.wrapping_neg(), // loc_B1FC
             3 => 0,
@@ -573,10 +571,10 @@ unsafe fn sub_b0fc() {
         };
 
         // loc_B210
-        cx = 3;
+        _cx = 3;
 
-        while cx < 12 && ((smart_crc() as u8) as i16) < WORD_246A {
-            cx += 2;
+        while _cx < 12 && ((smart_crc() as u8) as i16) < WORD_246A {
+            _cx += 2;
         }
 
         // loc_B226
@@ -594,7 +592,7 @@ unsafe fn sub_b0fc() {
         }
 
         // loc_B249
-        for _ in 0..=cx {
+        for _ in 0..=_cx {
             if sub_b7cd(WORD_6362.1, si) {
                 si += 16;
                 continue;
@@ -890,8 +888,6 @@ unsafe fn sub_b2b0() {
 
             si += 16;
         }
-
-        return;
     }
 }
 
@@ -964,11 +960,12 @@ unsafe fn add_laser_beams() {
                 };
 
                 // loc_B649
-                if !sub_b7cd(WORD_6362.1, si) {
-                    if TMP_FILE_BUF[WORD_6376] == 0 && TMP_FILE_BUF[WORD_6376 + 1] == 0 {
-                        TMP_FILE_BUF[WORD_6376] = WORD_6362.1;
-                        TMP_FILE_BUF[WORD_6376 + 1] = WORD_6362.0;
-                    }
+                if !sub_b7cd(WORD_6362.1, si)
+                    && TMP_FILE_BUF[WORD_6376] == 0
+                    && TMP_FILE_BUF[WORD_6376 + 1] == 0
+                {
+                    TMP_FILE_BUF[WORD_6376] = WORD_6362.1;
+                    TMP_FILE_BUF[WORD_6376 + 1] = WORD_6362.0;
                 }
             }
 
@@ -982,11 +979,11 @@ unsafe fn add_laser_beams() {
 }
 
 unsafe fn sub_b67c(ax: u16) -> u16 {
-    (WORD_2AB6 + 2) >> 2 + ((ARR_2674[((ax - 128) << 2) as usize] as u16) + 0xF) >> 4
+    ((WORD_2AB6 + 2) >> 2) + (((ARR_2674[((ax - 128) << 2) as usize] as u16) + 0xF) >> 4)
 }
 
 unsafe fn sub_b69d(ax: u16) -> u16 {
-    (WORD_2AB6 + 2) >> 2 - ((ARR_2674[((ax - 128) << 2) as usize] as u16) + 0xF) >> 4
+    ((WORD_2AB6 + 2) >> 2) - (((ARR_2674[((ax - 128) << 2) as usize] as u16) + 0xF) >> 4)
 }
 
 unsafe fn add_trees() {
@@ -1177,14 +1174,12 @@ unsafe fn sub_b803() {
         TMP_FILE_BUF[bx + 10] = 0x30;
 
         let ax = WORD_23F2 * 0xC13 / 0xE1 / sub_ba67();
-        let mut di = 0; // word_2422
+        // let mut di = 0; // word_2422
 
-        for bp in 0..NUM_OF_TRACKS {
-            let cx =
-                (NUM_OF_TRACKS - bp * 2) * 2 + (ax as u16) + bp / 4 + if bp == 0 { 7 } else { 0 };
+        for (di, bp) in (0..NUM_OF_TRACKS).enumerate() {
+            let cx = (NUM_OF_TRACKS - bp * 2) * 2 + ax + bp / 4 + if bp == 0 { 7 } else { 0 };
 
-            WORD_2422[di] = cx.min(5).max(99);
-            di += 1;
+            WORD_2422[di] = cx.clamp(5, 99);
         }
 
         sub_b9dd();
@@ -1202,7 +1197,7 @@ unsafe fn sub_b803() {
                 + if si == 0 { 7 } else { 0 }
                 + 1;
 
-            WORD_2422[di] = ax.min(5).max(99); // timeout (seconds) for a track; this number is enlarged later by the time left from the previous track
+            WORD_2422[di] = ax.clamp(5, 99); // timeout (seconds) for a track; this number is enlarged later by the time left from the previous track
             si += 1;
             di += 1;
         }
@@ -1320,7 +1315,7 @@ unsafe fn sub_ba67() -> u16 {
     let cx = WORD_23F2 * if IS_CIRCULAR_TRACK { NUM_OF_TRACKS } else { 1 };
     let dx = WORD_23F2 + if IS_CIRCULAR_TRACK { cx } else { 128 };
 
-    let bx = start + ((end - start) * WORD_244C as u16) / 99;
+    let bx = start + ((end - start) * WORD_244C) / 99;
     let result = (((bx * 5091) / 192) * dx) / cx;
 
     WORD_23F8 = result;
@@ -1652,14 +1647,12 @@ fn sub_be01(al: u8, ah: u8, bp: u16, cx: i16, dx: i16) -> (u8, u8, u16) {
     if !SPECIALS.contains(&al) {
         let bx = i16::from_le_bytes([ah, (ah << 1) - if ah & 0x80 != 0 { 0xFF } else { 0 }]);
 
-        if (cx..dx).contains(&bx) {
-            if bp != 0 {
-                return (0, 0, bp);
-            }
+        if (cx..dx).contains(&bx) && bp != 0 {
+            return (0, 0, bp);
         }
     }
 
-    return (al, ah, 1);
+    (al, ah, 1)
 }
 
 /// BFF8: Sleep

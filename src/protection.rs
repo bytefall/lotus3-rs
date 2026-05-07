@@ -92,7 +92,7 @@ pub unsafe fn protection_screen() {
 
     // loc_2FF5
     let [bgr, helmets] = load_resource_series(b'I', &PROT_RES_IDS);
-    draw_sprite(&res_unpack_with_pal(&bgr), Size::full(), Point::start());
+    draw_sprite(res_unpack_with_pal(&bgr), Size::full(), Point::start());
 
     let helmets = res_unpack_simple(&helmets);
     draw_sprite(
@@ -168,8 +168,10 @@ unsafe fn make_secret(prot_code: u16, prot_d5c: u16, prot_d5e: u16) -> StackVec<
                 } else {
                     let dl = (dx as u8).wrapping_add(83);
 
-                    prot_d7b.push(if dl < 89 { dl } else { dl.wrapping_sub(24) });
-                    prot_d7b.resize(3, b' ');
+                    prot_d7b
+                        .push(if dl < 89 { dl } else { dl.wrapping_sub(24) })
+                        .unwrap();
+                    prot_d7b.resize(3, b' ').unwrap();
 
                     return prot_d7b;
                 }
@@ -189,7 +191,7 @@ unsafe fn make_secret(prot_code: u16, prot_d5c: u16, prot_d5e: u16) -> StackVec<
 
     if dx[0] >= 100 {
         dx[0] = dx[0].wrapping_sub(100);
-        prot_d7b.push(49);
+        prot_d7b.push(49).unwrap();
         cx = cx.wrapping_sub(1);
     }
 
@@ -198,12 +200,12 @@ unsafe fn make_secret(prot_code: u16, prot_d5c: u16, prot_d5e: u16) -> StackVec<
     let cx = cx.to_le_bytes();
 
     if ax[0] != cx[0] {
-        prot_d7b.push(ax[0] + b'0');
+        prot_d7b.push(ax[0] + b'0').unwrap();
     }
 
     // loc_2FF0
-    prot_d7b.push(ax[1] + b'0');
-    prot_d7b.resize(3, b' ');
+    prot_d7b.push(ax[1] + b'0').unwrap();
+    prot_d7b.resize(3, b' ').unwrap();
     prot_d7b
 }
 

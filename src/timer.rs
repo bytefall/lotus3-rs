@@ -39,34 +39,39 @@ pub const PIT_MODE: u16 = 0x43;
 /// 11  = Access mode: lobyte/hibyte
 /// 011 = Mode 3: square wave generator
 /// 0   = 16-bit binary
+#[allow(clippy::unusual_byte_groupings)]
 const PIT_CH0_MODE3: u8 = 0b11_011_0;
 
 /// 10  = Channel 2
 /// 11  = Access mode: lobyte/hibyte
 /// 000 = Mode 0: interrupt on terminal count
 /// 0   = 16-bit binary
+#[allow(clippy::unusual_byte_groupings)]
 pub const PIT_CH2_MODE0: u8 = 0b10_11_000_0;
 
 /// 10  = Channel 2
 /// 00  = Latch count value command
 /// 000 = Mode 0: interrupt on terminal count
 /// 0   = 16-bit binary
+#[allow(clippy::unusual_byte_groupings)]
 pub const PIT_CH2_LATCH: u8 = 0b10_00_000_0;
 
 /// D3B6: Set INT 24h (DOS critical error handler) vector to point to sub_d3da
 pub unsafe fn set_dos_ceh() {
     asm!(
-        "mov es, {:x}",
-        "mov es:[0x90], {:x}",
+        "push es",
+        "mov es, {seg:x}",
+        "mov es:[0x90], {off:x}",
         "mov es:[0x92], cs",
-        in(reg) 0,
-        in(reg) dos_ceh_isr as u16,
+        "pop es",
+        seg = in(reg) 0_u16,
+        off = in(reg) dos_ceh_isr as *const () as u16,
     );
 }
 
 /// D3C7: Restore INT 24h (DOS critical error handler) vector using stored WORD_3D7E / WORD_3D80
 pub unsafe fn restore_dos_ceh() {
-    setd::<0, 0x90>(transmute(ORIG_DOS_CEH_ISR));
+    setd::<0, 0x90>(transmute::<FarPointer, u32>(ORIG_DOS_CEH_ISR));
 }
 
 /// D3DA: ISR for DOS critical error handler
@@ -83,11 +88,13 @@ pub unsafe fn set_kbd_isr() {
 
     cli();
     asm!(
-        "mov es, {:x}",
-        "mov es:[0x24], {:x}",
+        "push es",
+        "mov es, {seg:x}",
+        "mov es:[0x24], {off:x}",
         "mov es:[0x26], cs",
-        in(reg) 0,
-        in(reg) kbd_isr as u16,
+        "pop es",
+        seg = in(reg) 0_u16,
+        off = in(reg) kbd_isr as *const () as u16,
     );
     sti();
 }
@@ -101,11 +108,11 @@ unsafe fn clear_kbd_buf() {
 pub unsafe fn restore_kbd_isr() {
     // restore old INT 9h handler
     cli();
-    setd::<0, 0x24>(transmute(ORIG_KBD_ISR));
+    setd::<0, 0x24>(transmute::<FarPointer, u32>(ORIG_KBD_ISR));
     sti();
 
     // drain the BIOS keyboard buffer (using INT 16h) so that no keystrokes remain
-    while !kbd_get_key().is_none() {}
+    while kbd_get_key().is_some() {}
 }
 
 /// D421: Retrieve next pending key from WORD_3E08, normalize character, uppercase conversion, return in AX
@@ -118,7 +125,7 @@ pub unsafe fn sub_d421() -> u8 {
 
     WORD_3E08 = 0;
 
-    if matches!(al, b'a'..=b'z') {
+    if al.is_ascii_lowercase() {
         al - b' ' // to uppercase
     } else {
         al
@@ -141,9 +148,17 @@ const CAPS: u8 = 0x3A;
 unsafe extern "C" fn kbd_isr() {
     naked_asm!(
         "cld",
+        "push ds",
+        "push es",
         "pushal",
+        "push cs",
+        "pop ds",
+        "push ds",
+        "pop es",
         "call {body}",
         "popal",
+        "pop es",
+        "pop ds",
         "iret",
         body = sym kbd_isr_body,
     );
@@ -173,7 +188,15 @@ unsafe extern "C" fn kbd_isr_body() {
         outb::<PS2_STATUS>(v | 0b1000_0000);
         outb::<PS2_STATUS>(v);
     } else {
-        asm!("pushf", "lcall [{}]", sym ORIG_KBD_ISR);
+        asm!(
+            "pushf",
+            "lcall [{}]",
+            "push cs",
+            "pop ds",
+            "push ds",
+            "pop es",
+            sym ORIG_KBD_ISR,
+        );
         cli();
 
         while let Some(key) = kbd_get_key() {
@@ -195,11 +218,13 @@ pub unsafe fn set_timer() {
     outb::<PIT_CHANNEL_0>(WORD_3E12.to_le_bytes()[0]);
     outb::<PIT_CHANNEL_0>(WORD_3E12.to_le_bytes()[1]);
     asm!(
-        "mov es, {:x}",
-        "mov es:[0x20], {:x}",
+        "push es",
+        "mov es, {seg:x}",
+        "mov es:[0x20], {off:x}",
         "mov es:[0x22], cs",
-        in(reg) 0,
-        in(reg) timer_isr as u16,
+        "pop es",
+        seg = in(reg) 0_u16,
+        off = in(reg) timer_isr as *const () as u16,
     );
     sti();
 }
@@ -210,7 +235,7 @@ pub unsafe fn restore_timer() {
     outb::<PIT_MODE>(PIT_CH0_MODE3);
     outb::<PIT_CHANNEL_0>(WORD_3D78.to_le_bytes()[0]);
     outb::<PIT_CHANNEL_0>(WORD_3D78.to_le_bytes()[1]);
-    setd::<0, 0x20>(transmute(ORIG_PIT_ISR));
+    setd::<0, 0x20>(transmute::<FarPointer, u32>(ORIG_PIT_ISR));
     sti();
 }
 
@@ -219,9 +244,17 @@ pub unsafe fn restore_timer() {
 unsafe extern "C" fn timer_isr() {
     naked_asm!(
         "cld",
+        "push ds",
+        "push es",
         "pushal",
+        "push cs",
+        "pop ds",
+        "push ds",
+        "pop es",
         "call {body}",
         "popal",
+        "pop es",
+        "pop ds",
         "iret",
         body = sym timer_isr_body,
     );
@@ -290,7 +323,15 @@ unsafe extern "C" fn timer_isr_body() {
     } else {
         WORD_3E14 += WORD_3D78;
 
-        asm!("pushf", "lcall [{}]", sym ORIG_PIT_ISR);
+        asm!(
+            "pushf",
+            "lcall [{}]",
+            "push cs",
+            "pop ds",
+            "push ds",
+            "pop es",
+            sym ORIG_PIT_ISR,
+        );
     }
 
     // loc_D5EB
@@ -854,7 +895,14 @@ pub unsafe fn sub_d9eb() {
 /// Read the PS/2 keyboard. Return ASCII character is in AL and the scan code is in AH.
 unsafe fn kbd_get_key() -> Option<u16> {
     // BIOS: get keyboard buffer status
-    asm!("int 0x16", in("ax") 0x100u16);
+    asm!(
+        "push ds",
+        "push es",
+        "int 0x16",
+        "pop es",
+        "pop ds",
+        in("ax") 0x100u16,
+    );
 
     // ZF set if no key in buffer
     if get_flags() & (1 << 6) != 0 {
@@ -863,7 +911,14 @@ unsafe fn kbd_get_key() -> Option<u16> {
 
     // BIOS: read key (wait if empty)
     let mut key: u16;
-    asm!("int 0x16", inout("ax") 0u16 => key);
+    asm!(
+        "push ds",
+        "push es",
+        "int 0x16",
+        "pop es",
+        "pop ds",
+        inout("ax") 0u16 => key,
+    );
 
     Some(key)
 }

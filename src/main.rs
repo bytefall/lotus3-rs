@@ -10,14 +10,12 @@ extern crate alloc;
 
 use crate::{
     archive::open_and_read_data_file,
-    config::CFG,
-    data::{SCREEN_HEIGHT, SCREEN_WIDTH, VERSION_STR, WORD_63BC, WORD_5160, WORD_5162, WORD_5164},
-    dos::{exit, get_data_seg, printf, set_data_seg, sub_db28},
+    data::{VERSION_STR, WORD_5160, WORD_5162, WORD_5164},
+    dos::{exit, get_data_seg, printf, sub_db28},
+    hud::{VGA_DBL_BUF, VGA_SIZE},
     intro::show_intro,
     mem::GLOBAL_ALLOCATOR,
-    menu::main_menu,
     protection::protection_screen,
-    timer::prepare_task_context,
     video::{set_video_mode_and_timer, sub_d37b, sub_d396},
 };
 
@@ -41,6 +39,9 @@ mod sprite;
 mod timer;
 mod video;
 
+/// # Safety
+///
+/// This the main entry point.
 #[unsafe(link_section = ".startup")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn main() -> i32 {
@@ -51,13 +52,13 @@ pub unsafe extern "C" fn main() -> i32 {
     WORD_5162 = get_data_seg();
 
     GLOBAL_ALLOCATOR.init();
-    WORD_63BC.resize(SCREEN_WIDTH * SCREEN_HEIGHT, 0); // +VGA_DBL_BUF_START
+    VGA_DBL_BUF.resize(VGA_SIZE, 0);
 
     set_video_mode_and_timer();
     open_and_read_data_file();
     sub_d37b();
     sub_db28();
-    // protection_screen();
+    protection_screen();
     // mov     word [word_1F26], loc_51C4 // exit fn
     // prepare_task_context(&loc_5371);
     // play_music(3);

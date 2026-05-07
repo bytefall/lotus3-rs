@@ -36,7 +36,17 @@ struct DosWriter;
 impl Write for DosWriter {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         for c in s.bytes() {
-            unsafe { asm!("int 0x21", in("ax") 0x200u16, in("dl") c) }
+            unsafe {
+                asm!(
+                    "push ds",
+                    "push es",
+                    "int 0x21",
+                    "pop es",
+                    "pop ds",
+                    in("ax") 0x200u16,
+                    in("dl") c,
+                )
+            }
         }
 
         Ok(())
@@ -56,7 +66,7 @@ pub unsafe fn inb<const PORT: u16>() -> u8 {
         asm!("in al, {0}", const PORT, out("al") v);
     }
 
-    return v;
+    v
 }
 
 pub unsafe fn inw<const PORT: u16>() -> u16 {
@@ -95,6 +105,7 @@ pub unsafe fn sti() {
     asm!("sti")
 }
 
+#[allow(clippy::empty_loop)]
 pub unsafe fn exit(rt: u8) -> ! {
     asm!("mov ah, 0x4C", "int 0x21", in("al") rt);
     loop {}
@@ -113,34 +124,40 @@ pub unsafe fn set_data_seg(ds: u16) {
 pub unsafe fn getd<const SEGMENT: u16, const OFFSET: u16>() -> u32 {
     let v: u32;
     asm!(
-        "mov es, {:x}",
-        "mov {}, es:[{}]",
-        in(reg) SEGMENT,
-        out(reg) v,
-        const OFFSET,
+        "push es",
+        "mov es, {segment:x}",
+        "mov {value}, es:[{offset}]",
+        "pop es",
+        segment = in(reg) SEGMENT,
+        value = out(reg) v,
+        offset = const OFFSET,
     );
     v
 }
 
 pub unsafe fn setd<const SEGMENT: u16, const OFFSET: u16>(v: u32) {
     asm!(
-        "mov es, {:x}",
-        "mov es:[{}], {}",
-        in(reg) SEGMENT,
-        const OFFSET,
-        in(reg) v,
+        "push es",
+        "mov es, {segment:x}",
+        "mov es:[{offset}], {value}",
+        "pop es",
+        segment = in(reg) SEGMENT,
+        offset = const OFFSET,
+        value = in(reg) v,
     );
 }
 
 pub unsafe fn read_word(segment: u16, offset: u16) -> u16 {
     let val;
     asm!(
-        "mov es, {0:x}",
-        "mov di, {1:x}",
-        "mov {2:x}, es:[di]",
-        in(reg) segment,
-        in(reg) offset,
-        out(reg) val,
+        "push es",
+        "mov es, {segment:x}",
+        "mov di, {offset:x}",
+        "mov {value:x}, es:[di]",
+        "pop es",
+        segment = in(reg) segment,
+        offset = in(reg) offset,
+        value = out(reg) val,
         out("di") _,
     );
     val
@@ -148,13 +165,15 @@ pub unsafe fn read_word(segment: u16, offset: u16) -> u16 {
 
 pub unsafe fn write_byte(segment: u16, offset: u16, value: u8) {
     asm!(
-        "mov es, {0:x}",        // Move segment to ES
-        "mov di, {2:x}",        // Move offset to DI
-        "mov es:[di], {1:x}",   // Use ES:DI for memory access
-        in(reg) segment,
-        in(reg) value as u16,
-        in(reg) offset,
-        out("di") _             // Inform the compiler that DI is clobbered
+        "push es",
+        "mov es, {segment:x}",
+        "mov di, {offset:x}",
+        "mov es:[di], {value:x}",
+        "pop es",
+        segment = in(reg) segment,
+        value = in(reg) value as u16,
+        offset = in(reg) offset,
+        out("di") _,
     );
 }
 
@@ -173,7 +192,11 @@ unsafe fn mouse_get_position() -> MouseState {
     };
 
     asm!(
+        "push ds",
+        "push es",
         "int 0x33",
+        "pop es",
+        "pop ds",
         "mov {btn:x}, bx",
         in("ax") 3,
         out("cx") m.x,
@@ -259,58 +282,62 @@ pub unsafe fn file_open(file_name: &str) -> u16 {
 
     let file_handle: u16;
     asm!(
+        "push ds",
+        "push es",
         "int 0x21",
-        inout("ax") 0x3D02_u16 => file_handle,
+        "pop es",
+        "pop ds",
+        inout("ax") 0x3D00_u16 => file_handle,
         in("dx") file_name.as_ptr(),
     );
 
     if get_flags() & 1 != 0 {
-        loc_dc60(&OPEN_ERROR);
+        loc_dc60(OPEN_ERROR);
     }
 
     file_handle
 }
 
 /// DBF1: Reads a file.
-pub unsafe fn file_read(file_handle: u16, buf: &mut [u8]) -> u16 {
-    let mut ds = 0_u16;
+pub unsafe fn file_read(file_handle: u16, mut buf: impl AsMut<[u8]>) -> u16 {
+    let buf = buf.as_mut();
 
-    let dx = if buf.as_ptr() as usize > 0xFFFF {
-        asm!("mov {:x}, ds", out(reg) ds);
+    let (ds, dx) = if buf.as_ptr() as usize > 0xFFFF {
+        let mem_pos = (get_data_seg() as u32) * 16 + buf.as_ptr() as u32;
 
-        let mem_pos = (ds as u32) * 16 + buf.as_ptr() as u32;
-        let new_ds = (mem_pos / 16) as u16;
-        let new_dx = (mem_pos % 16) as u16;
-
-        asm!("mov ds, {:x}", "mov dx, {:x}", in(reg) new_ds, in(reg) new_dx);
-
-        new_dx
+        ((mem_pos / 16) as u16, (mem_pos % 16) as u16)
     } else {
-        buf.as_ptr() as u16
+        (get_data_seg(), buf.as_ptr() as u16)
     };
 
     let len: u16;
     asm!(
+        "push ds",
+        "push es",
+        "mov ds, {call_ds:x}",
         "int 0x21",
+        "pop es",
+        "pop ds",
         inout("ax") 0x3F00_u16 => len,
         in("bx") file_handle,
         in("cx") buf.len(),
         in("dx") dx,
+        call_ds = in(reg) ds,
     );
-
-    if ds > 0 {
-        asm!("mov ds, {:x}", in(reg) ds);
-    }
 
     if get_flags() & 1 != 0 {
         // close file
         asm!(
+            "push ds",
+            "push es",
             "int 0x21",
+            "pop es",
+            "pop ds",
             in("ax") 0x3E00_u16,
             in("bx") file_handle,
         );
 
-        loc_dc60(&READ_ERROR);
+        loc_dc60(READ_ERROR);
     }
 
     len
@@ -329,9 +356,13 @@ pub unsafe fn printf(s: &str) {
         "cmp     al, {}",
         "jz      3f",
         "push    si",
+        "push    ds",
+        "push    es",
         "mov     dl, al",
         "mov     ah, 2",
         "int     0x21",
+        "pop     es",
+        "pop     ds",
         "pop     si",
         "jmp     2b",
         "3:",
@@ -353,7 +384,7 @@ pub unsafe fn sub_dc4f() {
         return;
     }
 
-    loc_dc60(&MEMORY_ERROR);
+    loc_dc60(MEMORY_ERROR);
 }
 
 /// DC60

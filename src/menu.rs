@@ -1,14 +1,14 @@
 use alloc::vec::Vec;
-use core::{mem, ptr};
+use core::{mem::transmute, ptr};
 
 use crate::{
     archive::{arc_unpack_res, load_resource_series, res_load},
     bitmap::draw_char_small,
     chars::{BmpVec, chr_load_and_prepare_few},
-    config::CFG,
+    config::{CFG, SoundSettings},
     data::*,
     game::sub_575c,
-    hud::update_screen,
+    hud::{VGA_DBL_BUF, VGA_WIDTH, update_screen},
     sound::{sub_20ed, sub_209c},
     sprite::{Point, Size, draw_sprite},
     timer::{sub_d6f9, sub_d421, sub_d915},
@@ -64,7 +64,7 @@ static mut CURR_MENU_ROW: u16 = 0; // F9E: Y = 1st column
 pub unsafe fn main_menu() {
     WORD_2E78 = 0;
 
-    let [font3, font4, font5] = chr_load_and_prepare_few(&[3, 4, 5]);
+    let [font3, font4, _font5] = chr_load_and_prepare_few(&[3, 4, 5]);
     let [i14, i15] = load_resource_series(b'I', &[0x14, 0x15]);
     // &[0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1F, 0x20]
 
@@ -75,7 +75,7 @@ pub unsafe fn main_menu() {
     sub_d915();
     fade_out();
 
-    draw_sprite(&res_unpack_with_pal(&i14), Size::full(), Point::start());
+    draw_sprite(res_unpack_with_pal(&i14), Size::full(), Point::start());
 
     let i15 = res_unpack_simple(&i15);
     draw_main_menu_items(&i15, &font3, &font4);
@@ -90,7 +90,7 @@ pub unsafe fn main_menu() {
             draw_main_menu_items(&i15, &font3, &font4);
             // handle_esc_key(loc_DC70);
             sub_d6f9();
-            let (ax, bl) = sub_575c();
+            let (ax, _bl) = sub_575c();
 
             if BYTE_1F58 != 0 {
                 let cx = CURR_MENU_COL;
@@ -158,7 +158,7 @@ pub unsafe fn main_menu() {
 
 /// 36D2: Draw main menu items (P1 and P2 name, gears, etc.) and a red frame.
 #[inline(never)]
-unsafe fn draw_main_menu_items(i15: &[u8], font3: &BmpVec, font4: &BmpVec) {
+unsafe fn draw_main_menu_items(i15: impl AsRef<[u8]>, font3: &BmpVec, font4: &BmpVec) {
     P1_GEARS = CFG.p1_gears;
     P2_GEARS = CFG.p2_gears;
     P1_ACCEL = CFG.p1_accel;
@@ -179,9 +179,9 @@ unsafe fn draw_main_menu_items(i15: &[u8], font3: &BmpVec, font4: &BmpVec) {
     draw_menu_item(&i15, Point::xy(6, 91), CFG.p1_accel as u8 + 2);
     draw_menu_item(&i15, Point::xy(214, 52), CFG.p2_gears as u8);
     draw_menu_item(&i15, Point::xy(214, 91), CFG.p2_accel as u8 + 2);
-    // draw_menu_item(&i15, Point::xy(110, 52), CFG_DATA.race_type as u8 + 6);
-    // draw_menu_item(&i15, Point::xy(110, 91), CFG_DATA.course_type as u8 + 10);
-    // draw_menu_item(&i15, Point::xy(110, 130), CFG_DATA.is_2pl_mode as u8 + 8);
+    // draw_menu_item(i15, Point::xy(110, 52), CFG_DATA.race_type as u8 + 6);
+    // draw_menu_item(i15, Point::xy(110, 91), CFG_DATA.course_type as u8 + 10);
+    // draw_menu_item(i15, Point::xy(110, 130), CFG_DATA.is_2pl_mode as u8 + 8);
 
     sub_389e();
     draw_menu_frame(
@@ -216,7 +216,7 @@ unsafe fn sub_3802() {
 
     let mut it = ARR176_FE3.iter_mut().zip(ARR176_FE2);
 
-    for ch in WORD_63BC[DWORD_FDC..]
+    for ch in VGA_DBL_BUF[DWORD_FDC..]
         .chunks_exact_mut(328)
         .take(WORD_FE0.max(11) as usize)
     {
@@ -240,7 +240,7 @@ unsafe fn sub_3834() {
 
     let mut it = ARR176_FE3.iter().zip(ARR176_FE2);
 
-    for ch in WORD_63BC[DWORD_FDC..]
+    for ch in VGA_DBL_BUF[DWORD_FDC..]
         .chunks_exact_mut(328)
         .take(WORD_FE0.max(11) as usize)
     {
@@ -261,11 +261,11 @@ unsafe fn sub_3834() {
 // ; cx - unpacked texture index
 // ; word_63BA - unpacked data
 #[inline(never)]
-unsafe fn draw_menu_item(data: &[u8], pos: Point, ix: u8) {
+unsafe fn draw_menu_item(data: impl AsRef<[u8]>, pos: Point, ix: u8) {
     const MENU_ITEM_SIZE: Size = Size::wh(104, 26);
 
     draw_sprite(
-        &data[ix as usize * MENU_ITEM_SIZE.size()..],
+        &data.as_ref()[ix as usize * MENU_ITEM_SIZE.size()..],
         MENU_ITEM_SIZE,
         pos,
     );
@@ -311,7 +311,7 @@ unsafe fn sub_389e() {
         return;
     }
 
-    for b in WORD_63BC[WORD_1092..].iter_mut().take(cx as usize * 2) {
+    for b in VGA_DBL_BUF[WORD_1092..].iter_mut().take(cx as usize * 2) {
         *b &= 0x1F;
     }
 }
@@ -333,122 +333,122 @@ unsafe fn draw_menu_frame(col: u16, row: u16, size: Size) {
     const BLACK: u8 = 0x60;
 
     WORD_1094 = (size.height + 12) as u16;
-    WORD_1092 = SCREEN_WIDTH * (row - 6) as usize + (col - 6) as usize;
+    WORD_1092 = VGA_WIDTH * (row - 6) as usize + (col - 6) as usize;
 
     let mut di = WORD_1092;
 
     // draw top left corner
-    WORD_63BC[di + 2] |= BLACK;
-    WORD_63BC[di + 3] |= BLACK;
+    VGA_DBL_BUF[di + 2] |= BLACK;
+    VGA_DBL_BUF[di + 3] |= BLACK;
 
-    WORD_63BC[di + SCREEN_WIDTH] |= TRANSPARENT;
-    WORD_63BC[di + SCREEN_WIDTH + 1] |= BLACK;
-    WORD_63BC[di + SCREEN_WIDTH + 2] |= MAROON;
-    WORD_63BC[di + SCREEN_WIDTH + 3] |= RED;
+    VGA_DBL_BUF[di + VGA_WIDTH] |= TRANSPARENT;
+    VGA_DBL_BUF[di + VGA_WIDTH + 1] |= BLACK;
+    VGA_DBL_BUF[di + VGA_WIDTH + 2] |= MAROON;
+    VGA_DBL_BUF[di + VGA_WIDTH + 3] |= RED;
 
-    WORD_63BC[di + SCREEN_WIDTH * 2] |= BLACK;
-    WORD_63BC[di + SCREEN_WIDTH * 2 + 1] |= MAROON;
-    WORD_63BC[di + SCREEN_WIDTH * 2 + 2] |= RED;
-    WORD_63BC[di + SCREEN_WIDTH * 2 + 3] |= MAROON;
+    VGA_DBL_BUF[di + VGA_WIDTH * 2] |= BLACK;
+    VGA_DBL_BUF[di + VGA_WIDTH * 2 + 1] |= MAROON;
+    VGA_DBL_BUF[di + VGA_WIDTH * 2 + 2] |= RED;
+    VGA_DBL_BUF[di + VGA_WIDTH * 2 + 3] |= MAROON;
 
-    WORD_63BC[di + SCREEN_WIDTH * 3] |= BLACK;
-    WORD_63BC[di + SCREEN_WIDTH * 3 + 1] |= RED;
-    WORD_63BC[di + SCREEN_WIDTH * 3 + 2] |= MAROON;
-    WORD_63BC[di + SCREEN_WIDTH * 3 + 3] |= BLACK;
+    VGA_DBL_BUF[di + VGA_WIDTH * 3] |= BLACK;
+    VGA_DBL_BUF[di + VGA_WIDTH * 3 + 1] |= RED;
+    VGA_DBL_BUF[di + VGA_WIDTH * 3 + 2] |= MAROON;
+    VGA_DBL_BUF[di + VGA_WIDTH * 3 + 3] |= BLACK;
 
     di += 4;
 
     // draw top line
     for _ in 0..size.width + 4 {
-        WORD_63BC[di] |= BLACK;
-        WORD_63BC[di + SCREEN_WIDTH] |= RED;
-        WORD_63BC[di + SCREEN_WIDTH * 2] |= BLACK;
+        VGA_DBL_BUF[di] |= BLACK;
+        VGA_DBL_BUF[di + VGA_WIDTH] |= RED;
+        VGA_DBL_BUF[di + VGA_WIDTH * 2] |= BLACK;
         di += 1;
     }
 
     // draw top right corner
-    WORD_63BC[di] |= BLACK;
-    WORD_63BC[di + 1] |= BLACK;
+    VGA_DBL_BUF[di] |= BLACK;
+    VGA_DBL_BUF[di + 1] |= BLACK;
 
-    WORD_63BC[di + SCREEN_WIDTH] |= RED;
-    WORD_63BC[di + SCREEN_WIDTH + 1] |= MAROON;
-    WORD_63BC[di + SCREEN_WIDTH + 2] |= BLACK;
-    WORD_63BC[di + SCREEN_WIDTH + 3] |= TRANSPARENT;
+    VGA_DBL_BUF[di + VGA_WIDTH] |= RED;
+    VGA_DBL_BUF[di + VGA_WIDTH + 1] |= MAROON;
+    VGA_DBL_BUF[di + VGA_WIDTH + 2] |= BLACK;
+    VGA_DBL_BUF[di + VGA_WIDTH + 3] |= TRANSPARENT;
 
-    WORD_63BC[di + SCREEN_WIDTH * 2] |= MAROON;
-    WORD_63BC[di + SCREEN_WIDTH * 2 + 1] |= RED;
-    WORD_63BC[di + SCREEN_WIDTH * 2 + 2] |= MAROON;
-    WORD_63BC[di + SCREEN_WIDTH * 2 + 3] |= BLACK;
+    VGA_DBL_BUF[di + VGA_WIDTH * 2] |= MAROON;
+    VGA_DBL_BUF[di + VGA_WIDTH * 2 + 1] |= RED;
+    VGA_DBL_BUF[di + VGA_WIDTH * 2 + 2] |= MAROON;
+    VGA_DBL_BUF[di + VGA_WIDTH * 2 + 3] |= BLACK;
 
-    WORD_63BC[di + SCREEN_WIDTH * 3] |= BLACK;
-    WORD_63BC[di + SCREEN_WIDTH * 3 + 1] |= MAROON;
-    WORD_63BC[di + SCREEN_WIDTH * 3 + 2] |= RED;
-    WORD_63BC[di + SCREEN_WIDTH * 3 + 3] |= BLACK;
+    VGA_DBL_BUF[di + VGA_WIDTH * 3] |= BLACK;
+    VGA_DBL_BUF[di + VGA_WIDTH * 3 + 1] |= MAROON;
+    VGA_DBL_BUF[di + VGA_WIDTH * 3 + 2] |= RED;
+    VGA_DBL_BUF[di + VGA_WIDTH * 3 + 3] |= BLACK;
 
-    di += SCREEN_WIDTH * 4;
+    di += VGA_WIDTH * 4;
 
     // draw right vertical line
     for _ in 0..size.height + 4 {
-        WORD_63BC[di + 1] |= BLACK;
-        WORD_63BC[di + 2] |= RED;
-        WORD_63BC[di + 3] |= BLACK;
-        di += SCREEN_WIDTH;
+        VGA_DBL_BUF[di + 1] |= BLACK;
+        VGA_DBL_BUF[di + 2] |= RED;
+        VGA_DBL_BUF[di + 3] |= BLACK;
+        di += VGA_WIDTH;
     }
 
     // draw right bottom corner
-    WORD_63BC[di] |= BLACK;
-    WORD_63BC[di + 1] |= MAROON;
-    WORD_63BC[di + 2] |= RED;
-    WORD_63BC[di + 3] |= BLACK;
+    VGA_DBL_BUF[di] |= BLACK;
+    VGA_DBL_BUF[di + 1] |= MAROON;
+    VGA_DBL_BUF[di + 2] |= RED;
+    VGA_DBL_BUF[di + 3] |= BLACK;
 
-    WORD_63BC[di + SCREEN_WIDTH] |= MAROON;
-    WORD_63BC[di + SCREEN_WIDTH + 1] |= RED;
-    WORD_63BC[di + SCREEN_WIDTH + 2] |= MAROON;
-    WORD_63BC[di + SCREEN_WIDTH + 3] |= BLACK;
+    VGA_DBL_BUF[di + VGA_WIDTH] |= MAROON;
+    VGA_DBL_BUF[di + VGA_WIDTH + 1] |= RED;
+    VGA_DBL_BUF[di + VGA_WIDTH + 2] |= MAROON;
+    VGA_DBL_BUF[di + VGA_WIDTH + 3] |= BLACK;
 
-    WORD_63BC[di + SCREEN_WIDTH * 2] |= RED;
-    WORD_63BC[di + SCREEN_WIDTH * 2 + 1] |= MAROON;
-    WORD_63BC[di + SCREEN_WIDTH * 2 + 2] |= BLACK;
-    WORD_63BC[di + SCREEN_WIDTH * 2 + 3] |= TRANSPARENT;
+    VGA_DBL_BUF[di + VGA_WIDTH * 2] |= RED;
+    VGA_DBL_BUF[di + VGA_WIDTH * 2 + 1] |= MAROON;
+    VGA_DBL_BUF[di + VGA_WIDTH * 2 + 2] |= BLACK;
+    VGA_DBL_BUF[di + VGA_WIDTH * 2 + 3] |= TRANSPARENT;
 
-    WORD_63BC[di + SCREEN_WIDTH * 3] |= BLACK;
-    WORD_63BC[di + SCREEN_WIDTH * 3 + 1] |= BLACK;
+    VGA_DBL_BUF[di + VGA_WIDTH * 3] |= BLACK;
+    VGA_DBL_BUF[di + VGA_WIDTH * 3 + 1] |= BLACK;
 
     // draw bottom horizontal line
     for _ in 0..size.width + 4 {
         di -= 1;
-        WORD_63BC[di + SCREEN_WIDTH] |= BLACK;
-        WORD_63BC[di + SCREEN_WIDTH * 2] |= RED;
-        WORD_63BC[di + SCREEN_WIDTH * 3] |= BLACK;
+        VGA_DBL_BUF[di + VGA_WIDTH] |= BLACK;
+        VGA_DBL_BUF[di + VGA_WIDTH * 2] |= RED;
+        VGA_DBL_BUF[di + VGA_WIDTH * 3] |= BLACK;
     }
 
     di -= 4;
 
     // draw left bottom corner
-    WORD_63BC[di] |= BLACK;
-    WORD_63BC[di + 1] |= RED;
-    WORD_63BC[di + 2] |= MAROON;
-    WORD_63BC[di + 3] |= BLACK;
+    VGA_DBL_BUF[di] |= BLACK;
+    VGA_DBL_BUF[di + 1] |= RED;
+    VGA_DBL_BUF[di + 2] |= MAROON;
+    VGA_DBL_BUF[di + 3] |= BLACK;
 
-    WORD_63BC[di + SCREEN_WIDTH] |= BLACK;
-    WORD_63BC[di + SCREEN_WIDTH + 1] |= MAROON;
-    WORD_63BC[di + SCREEN_WIDTH + 2] |= RED;
-    WORD_63BC[di + SCREEN_WIDTH + 3] |= MAROON;
+    VGA_DBL_BUF[di + VGA_WIDTH] |= BLACK;
+    VGA_DBL_BUF[di + VGA_WIDTH + 1] |= MAROON;
+    VGA_DBL_BUF[di + VGA_WIDTH + 2] |= RED;
+    VGA_DBL_BUF[di + VGA_WIDTH + 3] |= MAROON;
 
-    WORD_63BC[di + SCREEN_WIDTH * 2] |= TRANSPARENT;
-    WORD_63BC[di + SCREEN_WIDTH * 2 + 1] |= BLACK;
-    WORD_63BC[di + SCREEN_WIDTH * 2 + 2] |= MAROON;
-    WORD_63BC[di + SCREEN_WIDTH * 2 + 3] |= RED;
+    VGA_DBL_BUF[di + VGA_WIDTH * 2] |= TRANSPARENT;
+    VGA_DBL_BUF[di + VGA_WIDTH * 2 + 1] |= BLACK;
+    VGA_DBL_BUF[di + VGA_WIDTH * 2 + 2] |= MAROON;
+    VGA_DBL_BUF[di + VGA_WIDTH * 2 + 3] |= RED;
 
-    WORD_63BC[di + SCREEN_WIDTH * 3 + 2] |= BLACK;
-    WORD_63BC[di + SCREEN_WIDTH * 3 + 3] |= BLACK;
+    VGA_DBL_BUF[di + VGA_WIDTH * 3 + 2] |= BLACK;
+    VGA_DBL_BUF[di + VGA_WIDTH * 3 + 3] |= BLACK;
 
     // draw left vertical line
     for _ in 0..size.height + 4 {
-        di -= SCREEN_WIDTH;
-        WORD_63BC[di] |= BLACK;
-        WORD_63BC[di + 1] |= RED;
-        WORD_63BC[di + 2] |= BLACK;
+        di -= VGA_WIDTH;
+        VGA_DBL_BUF[di] |= BLACK;
+        VGA_DBL_BUF[di + 1] |= RED;
+        VGA_DBL_BUF[di + 2] |= BLACK;
     }
 }
 
@@ -458,7 +458,7 @@ pub unsafe fn sub_39e2() {
     Y_POS = 21;
 
     BYTE_12A3 = 4;
-    STR_PTR = core::mem::transmute(CFG.p1_name.as_ptr());
+    STR_PTR = transmute(CFG.p1_name.as_ptr());
     WORD_129D = 12;
     WORD_129F = 0;
     WORD_12A1 = 11;
@@ -472,7 +472,7 @@ unsafe fn loc_3a13() {
     X_POS = 221;
     Y_POS = 21;
     BYTE_12A3 = 4;
-    STR_PTR = core::mem::transmute(CFG.p2_name.as_ptr());
+    STR_PTR = transmute(CFG.p2_name.as_ptr());
     WORD_129D = 12;
     WORD_129F = 0;
     WORD_12A1 = 11;
@@ -550,7 +550,7 @@ pub unsafe fn sound_setup_menu() {
 
         if BYTE_1F58 != 0 {
             let prev = CFG.snd_setting;
-            CFG.snd_setting = mem::transmute(((WORD_3E32 / 40) & 0xFF) as u8);
+            CFG.snd_setting = transmute::<u8, SoundSettings>(((WORD_3E32 / 40) & 0xFF) as u8);
 
             if CFG.snd_setting != prev {
                 continue;
@@ -558,12 +558,13 @@ pub unsafe fn sound_setup_menu() {
         }
 
         if (al & 8) != 0 {
-            CFG.snd_setting = mem::transmute((CFG.snd_setting as u8).saturating_sub(1));
+            CFG.snd_setting =
+                transmute::<u8, SoundSettings>((CFG.snd_setting as u8).saturating_sub(1));
             continue;
         }
 
         if (al & 4) != 0 {
-            CFG.snd_setting = mem::transmute(4.min(CFG.snd_setting as u8 + 1));
+            CFG.snd_setting = transmute::<u8, SoundSettings>(4.min(CFG.snd_setting as u8 + 1));
             continue;
         }
 
@@ -624,7 +625,7 @@ pub unsafe fn handle_input(input: &mut [u8], pos: Point, font: &BmpVec) -> u8 {
                 input[WORD_1299 as usize] = b' ';
             }
             c @ (b' ' | b'A'..=b'Z' | b'0'..=b'9') => {
-                let mask = if matches!(c, b'0'..=b'9') { 1 } else { 2 };
+                let mask = if c.is_ascii_digit() { 1 } else { 2 };
 
                 if (BYTE_12A4 & mask) == 0 {
                     continue;
@@ -676,12 +677,12 @@ unsafe fn sub_465e(pos: Point, font: &BmpVec) {
 }
 
 /// 478D: Unpack resource
-pub unsafe fn res_unpack_simple(data: &[u8]) -> Vec<u8> {
+pub unsafe fn res_unpack_simple(data: impl AsRef<[u8]>) -> Vec<u8> {
     arc_unpack_res(data).unwrap()
 }
 
 /// 47A2: Unpack resource with palette
-pub unsafe fn res_unpack_with_pal(data: &[u8]) -> Vec<u8> {
+pub unsafe fn res_unpack_with_pal(data: impl AsRef<[u8]>) -> Vec<u8> {
     let mut data = arc_unpack_res(data).unwrap();
     let pal_start = data.len() - PALETTE.len();
 

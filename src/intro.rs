@@ -1,10 +1,7 @@
 use crate::{
     archive::{load_resource_series, load_resources, res_load, sub_cbc3},
-    data::{
-        PALETTE, PALETTE2, SCREEN_WIDTH, VGA_DBL_BUF_START, WORD_1F20, WORD_3D6C, WORD_3E18,
-        WORD_63BC,
-    },
-    hud::{sub_92a4, update_screen},
+    data::{PALETTE, PALETTE2, WORD_1F20, WORD_3D6C, WORD_3E18},
+    hud::{VGA_DBL_BUF, VGA_WIDTH, sub_92a4, update_screen},
     magazine::show_magazine,
     menu::{res_unpack_simple, res_unpack_with_pal},
     prepare::sleep,
@@ -18,7 +15,7 @@ pub unsafe fn show_intro() {
     show_magnetic_fields();
     show_credits();
     show_lotus_logo();
-    // show_magazine();
+    show_magazine();
 }
 
 /// 30DF: Show Gremlin logo
@@ -30,7 +27,7 @@ pub unsafe fn show_gremlin() {
 
     fade_out();
     draw_sprite(
-        &res_unpack_with_pal(&sub_cbc3(b'Q', 0)),
+        res_unpack_with_pal(sub_cbc3(b'Q', 0)),
         Size::full(),
         Point::start(),
     );
@@ -41,7 +38,7 @@ pub unsafe fn show_gremlin() {
     sleep(280);
     WORD_3E18 = 0;
 
-    unsafe fn draw_flash(flashes: &[u8], pos: Point, skip: usize) {
+    unsafe fn draw_flash(flashes: impl AsRef<[u8]>, pos: Point, skip: usize) {
         loop {
             sub_d6f9();
 
@@ -56,7 +53,7 @@ pub unsafe fn show_gremlin() {
             }
 
             draw_sprite(
-                &flashes[((skip + ax as usize) * FLASH_SIZE.width * FLASH_SIZE.height)..],
+                &flashes.as_ref()[((skip + ax as usize) * FLASH_SIZE.width * FLASH_SIZE.height)..],
                 FLASH_SIZE,
                 pos,
             );
@@ -106,8 +103,11 @@ pub unsafe fn show_magnetic_fields() {
             continue;
         }
 
-        let r = res_unpack_simple(&res[ax.min(20) as usize]);
-        draw_sprite(&r, Size::full(), Point::start());
+        draw_sprite(
+            res_unpack_simple(&res[ax.min(20) as usize]),
+            Size::full(),
+            Point::start(),
+        );
         update_screen();
 
         cx = ax;
@@ -117,8 +117,11 @@ pub unsafe fn show_magnetic_fields() {
         }
     }
 
-    let r = res_unpack_simple(res.last().unwrap());
-    draw_sprite(&r, Size::full(), Point::start());
+    draw_sprite(
+        res_unpack_simple(res.last().unwrap()),
+        Size::full(),
+        Point::start(),
+    );
     update_screen();
 
     WORD_3E18 = 0;
@@ -192,15 +195,14 @@ pub unsafe fn show_credits() {
     let font = res_load(b'Q', 0x1A);
     sleep(280);
 
-    for (text, delay) in &CREDITS_TXT {
+    for (text, delay) in CREDITS_TXT.iter().take(1) {
         draw_credits(&font, text, *delay);
-        break; // TODO: in order to skip the credits
     }
 
-    draw_car_approaching(&bgr, &car);
-    sub_32e2(&frame1);
-    sub_32e2(&frame2);
-    sub_32e2(&frame3);
+    draw_car_approaching(bgr, car);
+    sub_32e2(frame1);
+    sub_32e2(frame2);
+    sub_32e2(frame3);
 
     WORD_3E18 = 0;
     sleep(560);
@@ -215,7 +217,7 @@ pub unsafe fn show_credits() {
 }
 
 /// 32E2:
-unsafe fn sub_32e2(data: &[u8]) {
+unsafe fn sub_32e2(data: impl AsRef<[u8]>) {
     WORD_3E18 = 0;
     sleep(32);
 
@@ -224,7 +226,7 @@ unsafe fn sub_32e2(data: &[u8]) {
 }
 
 /// 3300: Draw an animation with a car that is approaching
-unsafe fn draw_car_approaching(bgr: &[u8], q1b: &[u8]) {
+unsafe fn draw_car_approaching(bgr: impl AsRef<[u8]>, q1b: impl AsRef<[u8]>) {
     const ANIM_STEP: u16 = 32;
 
     WORD_3E18 = 0;
@@ -241,40 +243,32 @@ unsafe fn draw_car_approaching(bgr: &[u8], q1b: &[u8]) {
 
         prev_step = step.min(36);
 
-        draw_sprite(bgr, Size::full(), Point::start());
-        draw_a_car(q1b, prev_step.into());
+        draw_sprite(&bgr, Size::full(), Point::start());
+        draw_a_car(&q1b, prev_step.into());
         update_screen();
     }
 }
 
 /// 333E: Draw a car (when car is approaching in the intro)
-fn draw_a_car(data: &[u8], step: usize) {
-    const WIDTH: usize = SCREEN_WIDTH;
+fn draw_a_car(data: impl AsRef<[u8]>, step: usize) {
+    const WIDTH: usize = VGA_WIDTH; // 336?
 
     let cx = 256 + (36 - step) * 512;
     let di = 160 - ((((WIDTH * 170) + 224) / cx) >> 1) + (WIDTH * 64)
         - (((((WIDTH * 118) + 288) / cx) * (WIDTH * 32 + 170)) >> 16) * WIDTH;
 
-    let xx = di % WIDTH;
-    let mut y = di / WIDTH;
-
-    for row in (0..WIDTH * 118).step_by(cx) {
+    for (y, row) in (di / WIDTH..).zip((0..WIDTH * 118).step_by(cx)) {
         let offset = (row >> 8) * 224;
-        let mut x = xx;
 
-        for i in (offset..offset + 224).step_by(cx >> 8) {
-            let px = data[i];
+        for (x, i) in (di % WIDTH..).zip((offset..offset + 224).step_by(cx >> 8)) {
+            let px = data.as_ref()[i];
 
             if px != 0xFF {
                 unsafe {
-                    WORD_63BC[VGA_DBL_BUF_START + Point::xy(x, y).index()] = px;
+                    VGA_DBL_BUF[Point::xy(x, y).index()] = px;
                 }
             }
-
-            x += 1;
         }
-
-        y += 1;
     }
 }
 
@@ -296,13 +290,13 @@ unsafe fn sub_33e6() {
 
 /// 3409: Leave pixels that have a color index 0, 1 or 2
 unsafe fn clear_text_texture() {
-    for i in &mut WORD_63BC[VGA_DBL_BUF_START..] {
+    for i in &mut VGA_DBL_BUF[..] {
         *i &= 0b1111_1100;
     }
 }
 
 /// 341F:
-unsafe fn draw_text_large(font: &[u8], text: &[(&str, Point)]) {
+unsafe fn draw_text_large(font: impl AsRef<[u8]>, text: &[(&str, Point)]) {
     'main: for (s, pt) in text {
         let mut skip = pt.index();
 
@@ -322,14 +316,14 @@ unsafe fn draw_text_large(font: &[u8], text: &[(&str, Point)]) {
                 }
             };
 
-            draw_char(c, font, Size::wh(16, 18), skip);
+            draw_char(c, &font, Size::wh(16, 18), skip);
             skip += 14;
         }
     }
 }
 
 /// 346D: Draw credits
-unsafe fn draw_credits(font: &[u8], text: &[(&str, Point)], delay: u16) {
+unsafe fn draw_credits(font: impl AsRef<[u8]>, text: &[(&str, Point)], delay: u16) {
     clear_text_texture();
     draw_text_large(font, text);
     update_screen();

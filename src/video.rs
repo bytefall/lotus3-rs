@@ -110,17 +110,14 @@ pub unsafe fn fade_by_color(pal: &[u8]) {
     sub_d161();
 
     let mut di = 0;
-    let mut bx = 0;
 
-    for ah in pal {
+    for (bx, ah) in pal.iter().enumerate() {
         VGA_FADE_PAL[di] = (i16::from_le_bytes([0, ah.wrapping_sub(VGA_PAL[bx])]) as i32)
             .saturating_div(WORD_3D6C.into()) as u16;
-
         di += 1;
 
         VGA_FADE_PAL[di] = u16::from_le_bytes([0, VGA_PAL[bx]]);
         di += 1;
-        bx += 1;
     }
 
     set_fade_vga_pal();
@@ -188,12 +185,29 @@ pub unsafe fn fade_step() {
 
 /// D1D7: Set VGA DAC colors
 pub unsafe fn flush_vga_pal() {
-    outb::<0x3C8>(0);
-    // outsb::<0x3C9>(&VGA_PALETTE) // can be implemented using `rep`
-
-    for i in VGA_PAL {
-        outb::<0x3C9>(i);
-    }
+    asm!(
+        "pushf",
+        "push ecx",
+        "push edx",
+        "push esi",
+        "push {src:e}",
+        "push {len:e}",
+        "pop ecx",
+        "pop esi",
+        "cld",
+        "mov dx, 0x3C8",
+        "xor al, al",
+        "out dx, al",
+        "inc dx",
+        ".byte 0x67, 0xF3, 0x6E",
+        "pop esi",
+        "pop edx",
+        "pop ecx",
+        "popf",
+        src = in(reg) &raw const VGA_PAL,
+        len = in(reg) VGA_PAL.len() as u32,
+        lateout("ax") _,
+    );
 }
 
 static mut WORD_D379: u16 = 0;
@@ -326,8 +340,12 @@ pub unsafe fn sub_d396() {
 unsafe fn get_default_disk() -> u8 {
     let disk: u8;
     asm!(
+        "push ds",
+        "push es",
         "mov ah, 0x19",
         "int 0x21",
+        "pop es",
+        "pop ds",
         out("al") disk,
     );
     disk
@@ -338,8 +356,12 @@ unsafe fn get_video_mode() -> (u8, u8, u8) {
     let columns: u8;
     let page: u8;
     asm!(
+        "push ds",
+        "push es",
         "mov ah, 0xF",
         "int 0x10",
+        "pop es",
+        "pop ds",
         "mov {}, al",
         "mov {}, ah",
         "mov {}, bh",
@@ -352,7 +374,11 @@ unsafe fn get_video_mode() -> (u8, u8, u8) {
 
 unsafe fn set_video_mode(mode: u8) {
     asm!(
+        "push ds",
+        "push es",
         "int 0x10",
+        "pop es",
+        "pop ds",
         in("ax") mode as u16,
     );
 }
@@ -360,7 +386,11 @@ unsafe fn set_video_mode(mode: u8) {
 unsafe fn reset_mouse() -> u8 {
     let mut status: u16 = 0;
     asm!(
+        "push ds",
+        "push es",
         "int 0x33",
+        "pop es",
+        "pop ds",
         inout("ax") status,
     );
     status as u8
@@ -368,9 +398,9 @@ unsafe fn reset_mouse() -> u8 {
 
 /// https://osdev.wiki/wiki/Interrupt_Vector_Table
 unsafe fn save_interrupt_vectors() {
-    ORIG_PIT_ISR = transmute(getd::<0, 0x20>());
-    ORIG_KBD_ISR = transmute(getd::<0, 0x24>());
-    ORIG_DOS_CEH_ISR = transmute(getd::<0, 0x90>());
+    ORIG_PIT_ISR = transmute::<u32, FarPointer>(getd::<0, 0x20>());
+    ORIG_KBD_ISR = transmute::<u32, FarPointer>(getd::<0, 0x24>());
+    ORIG_DOS_CEH_ISR = transmute::<u32, FarPointer>(getd::<0, 0x90>());
 }
 
 pub unsafe fn get_flags() -> u16 {

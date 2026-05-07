@@ -11,4 +11,6 @@ heapless = "0.9"
 panic = "abort"
 
 [profile.release]
+codegen-units = 1
+opt-level = "z"
 panic = "abort"
