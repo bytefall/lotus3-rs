@@ -6,11 +6,11 @@ use crate::{
     timer::{
         PIT_CH2_LATCH, PIT_CH2_MODE0, PIT_CHANNEL_0, PIT_CHANNEL_2, PIT_MODE, prepare_task_context,
         restore_dos_ceh, restore_kbd_isr, restore_timer, set_dos_ceh, set_kbd_isr, set_timer,
-        sub_d6f9,
+        sub_d6f9, sub_d926,
     },
 };
 
-/// Convert value to %
+/// D097: Convert value to %
 ///
 /// - 0% = 0
 /// - 4% = 1
@@ -315,8 +315,7 @@ pub unsafe fn set_video_mode_and_timer() {
 pub unsafe fn sub_d37b() {
     set_dos_ceh();
     set_kbd_isr();
-    // mov ax, sub_D926
-    prepare_task_context();
+    prepare_task_context(sub_d926);
     set_timer();
     set_vga_pal(&PALETTE2);
 

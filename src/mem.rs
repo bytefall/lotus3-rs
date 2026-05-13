@@ -4,7 +4,6 @@
 
 use core::{
     alloc::{GlobalAlloc, Layout},
-    cmp::min,
     mem::size_of,
     ptr::null_mut,
 };
@@ -15,7 +14,6 @@ const LAST_MEMORY_BYTE_ADDR: usize = 0x9FBFF; // (0X9000 << 4) + 0xFBFF, last by
 const ALLOCATOR_BLOCK_SIZE: usize = size_of::<AllocatorBlock>();
 const MIN_BLOCK_USEFUL_SIZE: usize = 16;
 const ALLOCATOR_ALIGN: usize = 16;
-const EXE_STACK_SIZE: usize = 0x1000;
 
 unsafe extern "C" {
     static _heap: u8;
@@ -48,6 +46,50 @@ impl AllocatorBlock {
     fn payload_size(&self, heap_end: usize) -> usize {
         self.raw_size(heap_end) - ALLOCATOR_BLOCK_SIZE
     }
+
+    unsafe fn split(&mut self, size: usize, heap_end: usize) -> Option<*mut AllocatorBlock> {
+        if self.payload_size(heap_end) < size + ALLOCATOR_BLOCK_SIZE + MIN_BLOCK_USEFUL_SIZE {
+            return None;
+        }
+
+        let new_next = self.payload_mut_ptr().byte_add(size) as *mut AllocatorBlock;
+        (*new_next).next = self.next;
+        (*new_next).prev = Some(self);
+        (*new_next).used = false;
+
+        if let Some(old_next) = self.next {
+            (*old_next).prev = Some(new_next);
+        }
+
+        self.next = Some(new_next);
+
+        Some(new_next)
+    }
+
+    unsafe fn merge_with_next(&mut self) {
+        if let Some(next) = self.next
+            && !(*next).used
+        {
+            if let Some(next) = (*next).next {
+                (*next).prev = Some(self);
+            }
+
+            self.next = (*next).next;
+        }
+    }
+
+    unsafe fn merge_with_prev(&mut self) {
+        if !self.used
+            && let Some(prev) = self.prev
+            && !(*prev).used
+        {
+            if let Some(next) = self.next {
+                (*next).prev = Some(prev);
+            }
+
+            (*prev).next = self.next;
+        }
+    }
 }
 
 pub struct DosAllocator {
@@ -67,7 +109,7 @@ impl DosAllocator {
         let seg = unsafe { get_data_seg() };
         let off = &raw const _heap as u16 as usize;
 
-        self.head = align_up(off + EXE_STACK_SIZE, ALLOCATOR_ALIGN) as *mut AllocatorBlock;
+        self.head = align_up(off, ALLOCATOR_ALIGN) as *mut AllocatorBlock;
         self.heap_end = LAST_MEMORY_BYTE_ADDR.saturating_sub((seg as usize) << 4);
 
         unsafe {
@@ -96,24 +138,8 @@ unsafe impl GlobalAlloc for DosAllocator {
             };
         }
 
-        if (*curr).payload_size(self.heap_end) < size + ALLOCATOR_BLOCK_SIZE + MIN_BLOCK_USEFUL_SIZE
-        {
-            (*curr).used = true;
-            return (*curr).payload_mut_ptr();
-        }
-
-        let new_next = curr.byte_add(size).byte_add(ALLOCATOR_BLOCK_SIZE);
-        (*new_next).next = (*curr).next;
-        (*new_next).prev = Some(curr);
-        (*new_next).used = false;
-
-        if let Some(old_next) = (*curr).next {
-            (*old_next).prev = Some(new_next);
-        }
-
-        (*curr).next = Some(new_next);
         (*curr).used = true;
-
+        (*curr).split(size, self.heap_end);
         (*curr).payload_mut_ptr()
     }
 
@@ -122,42 +148,33 @@ unsafe impl GlobalAlloc for DosAllocator {
             return;
         }
 
-        let curr = (ptr as u32 - ALLOCATOR_BLOCK_SIZE as u32) as *mut AllocatorBlock;
+        let curr = ptr.byte_sub(ALLOCATOR_BLOCK_SIZE) as *mut AllocatorBlock;
         (*curr).used = false;
-
-        // Merge with next block if it's free
-        if let Some(next) = (*curr).next
-            && !(*next).used
-        {
-            if (*next).next.is_some() {
-                (*(*next).next.unwrap()).prev = Some(curr);
-            }
-            (*curr).next = (*next).next;
-        }
-
-        // Merge with previous block if it's free
-        if let Some(prev) = (*curr).prev
-            && !(*prev).used
-        {
-            if (*curr).next.is_some() {
-                (*(*curr).next.unwrap()).prev = Some(prev);
-            }
-            (*prev).next = (*curr).next;
-        }
+        (*curr).merge_with_next();
+        (*curr).merge_with_prev();
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         assert_ne!(ptr, null_mut());
 
-        let curr = (ptr as usize - ALLOCATOR_BLOCK_SIZE) as *mut AllocatorBlock;
+        let new_size = align_up(new_size, ALLOCATOR_ALIGN);
+        let curr = ptr.byte_sub(ALLOCATOR_BLOCK_SIZE) as *mut AllocatorBlock;
 
         if new_size <= (*curr).payload_size(self.heap_end) {
-            // TODO: make a vacant block from the space left (if this feasible i.e. >= ALLOCATOR_BLOCK_SIZE + MIN_BLOCK_USEFUL_SIZE)
+            if let Some(new_next) = (*curr).split(new_size, self.heap_end) {
+                (*new_next).merge_with_next();
+            }
+
             return ptr;
         }
 
         let new_ptr = self.alloc(Layout::from_size_align(new_size, layout.align()).unwrap());
-        new_ptr.copy_from_nonoverlapping(ptr, min(layout.size(), new_size));
+
+        if new_ptr.is_null() {
+            return null_mut();
+        }
+
+        new_ptr.copy_from_nonoverlapping(ptr, layout.size().min(new_size));
         self.dealloc(ptr, layout);
         new_ptr
     }

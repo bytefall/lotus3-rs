@@ -1,5 +1,5 @@
 use crate::{
-    archive::{load_resource_series, sub_cbc3},
+    archive::sub_cbc3,
     data::{BYTE_3E0E, PALETTE, PALETTE2, WORD_3E18},
     dos::{cli, sti},
     hud::{VGA_WIDTH, copy_to_vga, update_screen},
@@ -21,21 +21,22 @@ pub unsafe fn show_magazine() {
     fade_out();
 
     draw_sprite(
-        res_unpack_with_pal(sub_cbc3(b'V', 0x32)),
+        &res_unpack_with_pal(&sub_cbc3(b'V', 0x32)),
         Size::full(),
         Point::start(),
     );
     update_screen();
 
-    let vids = load_resource_series(b'V', &VIDEO_IDS);
-    draw_video_sprite(&vids[0], -1);
+    let vid0 = sub_cbc3(b'V', VIDEO_IDS[0]);
+    draw_video_sprite(&vid0, -1);
 
     if WORD_3E18 < 3 {
-        draw_video_sprite(&vids[0], 0);
+        draw_video_sprite(&vid0, 0);
         fade_in();
 
         WORD_3E18 = ANIM_STEP;
         let mut i = 0;
+        let mut p = usize::MAX;
 
         while i < VIDEO_IDS.len() - 1 {
             i = if WORD_3E18 < (VIDEO_IDS.len() as u16) * ANIM_STEP {
@@ -44,7 +45,10 @@ pub unsafe fn show_magazine() {
                 VIDEO_IDS.len() - 1
             };
 
-            draw_video_sprite(&vids[i], 0);
+            if p != i {
+                p = i;
+                draw_video_sprite(&sub_cbc3(b'V', VIDEO_IDS[i]), 0);
+            }
         }
 
         PALETTE[16 * 3..].fill(0x3F);
@@ -52,7 +56,7 @@ pub unsafe fn show_magazine() {
     }
 
     // loc_2E7E
-    draw_video_sprite(sub_cbc3(b'V', 0x33), 1);
+    draw_video_sprite(&sub_cbc3(b'V', 0x33), 1);
     fade_in_pal(&PALETTE);
 
     WORD_3E18 = 0;
@@ -61,7 +65,7 @@ pub unsafe fn show_magazine() {
 }
 
 /// 2EB2:
-unsafe fn draw_video_sprite(res: impl AsRef<[u8]>, cx: i8) {
+unsafe fn draw_video_sprite(res: &[u8], cx: i8) {
     const PREFIX_PAL_LEN: usize = 720;
     const VIDEO_SIZE: Size = Size::wh(160, 112);
     const VIDEO_POS: Point = Point::xy(136, 38);

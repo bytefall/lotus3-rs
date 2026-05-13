@@ -1,9 +1,12 @@
 use core::ptr;
 
 use crate::{
-    config::{Acceleration, Race, Transmission},
+    config::{Acceleration, Model, Race, Transmission},
     hud::VGA_HEIGHT,
 };
+
+pub const DATA_SEG_DELTA: u16 = 0x1000;
+pub const DATA_STACK_TOP: u32 = 0x8000;
 
 #[repr(C, packed)]
 #[derive(Clone, Copy)]
@@ -48,6 +51,9 @@ pub static mut WORD_156D: u16 = 0; // 156D
 // TOOD: ...
 pub static mut WORD_1F20: u16 = 0; // 1F20
 // rb 1                                    ; 1F22
+
+/// Near code offset used by `loc_5371` as its task-context exit target.
+pub static mut WORD_1F26: usize = 0; // 1F26
 
 // TOOD: ...
 pub static mut WORD_1F28: u16 = 0; // 1F28
@@ -149,7 +155,7 @@ pub static mut ARC_HEADER: [u8; 2816] = [0; 2816]; // 3164
 pub const ARC_FILE_NAME: &str = "LOTUS.DAT\0"; // 3C64
 pub static mut ARC_FILE_HANDLE: u16 = 0; // 3C6E
 
-pub static mut CAR_NUM: u16 = 0; // 3EDA: 0 - Esprit S4, 1 - Elan SE, 2 - M200
+pub static mut CAR_NUM: Model = Model::Esprit; // 3EDA
 pub static mut IS_2PL_MODE: bool = false; // 3EDC
 pub static mut RACE_TYPE: Race = Race::TimeLimit; // 3EDE
 
@@ -204,8 +210,8 @@ pub static mut BYTE_3E2C: u8 = 0; // 3E2C: mouse_status
 pub static mut BYTE_3E2D: u8 = 0; // 3E2D
 pub static mut WORD_3E2E: u16 = 0; // 3E2E
 
-pub static mut WORD_3E30: u16 = 0x140; // 3E30: mouse x
-pub static mut WORD_3E32: u16 = 0x64; // 3E32: mouse y
+pub static mut WORD_3E30: u16 = 320; // 3E30: mouse x
+pub static mut WORD_3E32: u16 = 100; // 3E32: mouse y
 pub const CREATE_ERROR: &str = "ERROR: Can't create $\0"; // 3E34
 pub const OPEN_ERROR: &str = "ERROR: Can't open $\0"; // 3E4A
 pub const READ_ERROR: &str = "ERROR: Read error in $\0\0"; // 3E5E
@@ -449,8 +455,7 @@ pub static mut IS_TR_MOUNTAINS: bool = false; // 63B4
 pub static mut PLAYING_DEMO: u16 = 0; // 63B6
 pub static mut IS_PAUSED: u16 = 0; // 63B8
 pub static mut WORD_63BA: u16 = 0; // 63BA
-pub static mut WORD_63BE: u16 = 0; // dw arc_header_seg ; 63BE
-pub static mut DAT_FILE_HANDLE: u16 = 0; // 63C0
+pub static mut ARC_HEADER_SEG: [u8; 4096] = [0; 4096]; // 63BE
 pub static mut ARR_63C2: [u16; 512] = [0; 512]; // 63C2
 pub static mut ARR_67C2: [u16; 128] = [0; 128]; // 67C2
 pub static mut ARR_68C2: [u16; 128] = [0; 128]; // 68C2

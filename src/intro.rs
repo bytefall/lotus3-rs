@@ -27,7 +27,7 @@ pub unsafe fn show_gremlin() {
 
     fade_out();
     draw_sprite(
-        res_unpack_with_pal(sub_cbc3(b'Q', 0)),
+        &res_unpack_with_pal(&sub_cbc3(b'Q', 0)),
         Size::full(),
         Point::start(),
     );
@@ -38,7 +38,7 @@ pub unsafe fn show_gremlin() {
     sleep(280);
     WORD_3E18 = 0;
 
-    unsafe fn draw_flash(flashes: impl AsRef<[u8]>, pos: Point, skip: usize) {
+    unsafe fn draw_flash(flashes: &[u8], pos: Point, skip: usize) {
         loop {
             sub_d6f9();
 
@@ -53,7 +53,7 @@ pub unsafe fn show_gremlin() {
             }
 
             draw_sprite(
-                &flashes.as_ref()[((skip + ax as usize) * FLASH_SIZE.width * FLASH_SIZE.height)..],
+                &flashes[((skip + ax as usize) * FLASH_SIZE.width * FLASH_SIZE.height)..],
                 FLASH_SIZE,
                 pos,
             );
@@ -104,7 +104,7 @@ pub unsafe fn show_magnetic_fields() {
         }
 
         draw_sprite(
-            res_unpack_simple(&res[ax.min(20) as usize]),
+            &res_unpack_simple(&res[ax.min(20) as usize]),
             Size::full(),
             Point::start(),
         );
@@ -118,7 +118,7 @@ pub unsafe fn show_magnetic_fields() {
     }
 
     draw_sprite(
-        res_unpack_simple(res.last().unwrap()),
+        &res_unpack_simple(res.last().unwrap()),
         Size::full(),
         Point::start(),
     );
@@ -199,10 +199,10 @@ pub unsafe fn show_credits() {
         draw_credits(&font, text, *delay);
     }
 
-    draw_car_approaching(bgr, car);
-    sub_32e2(frame1);
-    sub_32e2(frame2);
-    sub_32e2(frame3);
+    draw_car_approaching(&bgr, &car);
+    sub_32e2(&frame1);
+    sub_32e2(&frame2);
+    sub_32e2(&frame3);
 
     WORD_3E18 = 0;
     sleep(560);
@@ -217,7 +217,7 @@ pub unsafe fn show_credits() {
 }
 
 /// 32E2:
-unsafe fn sub_32e2(data: impl AsRef<[u8]>) {
+unsafe fn sub_32e2(data: &[u8]) {
     WORD_3E18 = 0;
     sleep(32);
 
@@ -226,7 +226,7 @@ unsafe fn sub_32e2(data: impl AsRef<[u8]>) {
 }
 
 /// 3300: Draw an animation with a car that is approaching
-unsafe fn draw_car_approaching(bgr: impl AsRef<[u8]>, q1b: impl AsRef<[u8]>) {
+unsafe fn draw_car_approaching(bgr: &[u8], q1b: &[u8]) {
     const ANIM_STEP: u16 = 32;
 
     WORD_3E18 = 0;
@@ -296,7 +296,7 @@ unsafe fn clear_text_texture() {
 }
 
 /// 341F:
-unsafe fn draw_text_large(font: impl AsRef<[u8]>, text: &[(&str, Point)]) {
+unsafe fn draw_text_large(font: &[u8], text: &[(&str, Point)]) {
     'main: for (s, pt) in text {
         let mut skip = pt.index();
 
@@ -316,14 +316,14 @@ unsafe fn draw_text_large(font: impl AsRef<[u8]>, text: &[(&str, Point)]) {
                 }
             };
 
-            draw_char(c, &font, Size::wh(16, 18), skip);
+            draw_char(c, font, Size::wh(16, 18), skip);
             skip += 14;
         }
     }
 }
 
 /// 346D: Draw credits
-unsafe fn draw_credits(font: impl AsRef<[u8]>, text: &[(&str, Point)], delay: u16) {
+unsafe fn draw_credits(font: &[u8], text: &[(&str, Point)], delay: u16) {
     clear_text_texture();
     draw_text_large(font, text);
     update_screen();

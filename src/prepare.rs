@@ -1,7 +1,7 @@
 use core::cmp::Ordering;
 
 use crate::{
-    config::{CFG, Race},
+    config::{CFG, Model, Race},
     crc::{smart_crc, sub_ab9a},
     data::*,
     timer::{sub_d6f9, sub_d962},
@@ -1303,10 +1303,9 @@ unsafe fn sub_ba67() -> u16 {
     ];
 
     let data = match CAR_NUM {
-        0 => ARR_295E_ESPRIT_S4,
-        1 => ARR_295E_ELAN_SE,
-        2 => ARR_295E_M200,
-        _ => unimplemented!(),
+        Model::Esprit => ARR_295E_ESPRIT_S4,
+        Model::Elan => ARR_295E_ELAN_SE,
+        Model::M200 => ARR_295E_M200,
     };
 
     let start = data[TRACK_NUM as usize];

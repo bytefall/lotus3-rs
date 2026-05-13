@@ -209,6 +209,7 @@ unsafe fn mouse_get_position() -> MouseState {
 
 /// DA94
 pub unsafe fn sub_da94() {
+    CFG.arr_172c = [0; 128];
     CFG.arr_172c[1] = 0xFF;
     CFG.arr_172c[25] = 0xFF;
 
@@ -378,14 +379,14 @@ pub unsafe fn printf(s: &str) {
     )
 }
 
-/// DC4F
-pub unsafe fn sub_dc4f() {
-    if WORD_63BA < WORD_63BE {
-        return;
-    }
+// /// DC4F
+// pub unsafe fn sub_dc4f() {
+//     if WORD_63BA < WORD_63BE {
+//         return;
+//     }
 
-    loc_dc60(MEMORY_ERROR);
-}
+//     loc_dc60(MEMORY_ERROR);
+// }
 
 /// DC60
 pub unsafe fn loc_dc60(msg: &'static str) -> ! {

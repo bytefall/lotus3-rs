@@ -4,12 +4,17 @@ use core::{
 };
 
 use crate::{
-    config::{CFG, JoyState},
+    config::{CFG, Controls, JoyState},
     data::*,
-    dos::{cli, inb, inw, outb, read_word, setd, sti, sub_dad1},
+    dos::{cli, inb, inw, outb, setd, sti, sub_dad1},
     game::loc_5283,
     video::{fade_step, get_flags, loop_self},
 };
+
+const TASK_CONTEXT_STACK_TOP: u16 = 0x1400;
+
+static mut TIMER_SWITCH_CONTEXT: u8 = 0;
+static mut TASK_RETURN_IP_HIGH: u16 = 0;
 
 /// PS/2 data port
 const PS2_DATA: u16 = 0x60;
@@ -151,16 +156,17 @@ unsafe extern "C" fn kbd_isr() {
         "push ds",
         "push es",
         "pushal",
-        "push cs",
-        "pop ds",
-        "push ds",
-        "pop es",
+        "mov ax, cs",
+        "add ax, {data_seg_delta}",
+        "mov ds, ax",
+        "mov es, ax",
         "call {body}",
         "popal",
         "pop es",
         "pop ds",
         "iret",
         body = sym kbd_isr_body,
+        data_seg_delta = const DATA_SEG_DELTA,
     );
 }
 
@@ -191,11 +197,13 @@ unsafe extern "C" fn kbd_isr_body() {
         asm!(
             "pushf",
             "lcall [{}]",
-            "push cs",
-            "pop ds",
-            "push ds",
-            "pop es",
+            "mov ax, cs",
+            "add ax, {data_seg_delta}",
+            "mov ds, ax",
+            "mov es, ax",
             sym ORIG_KBD_ISR,
+            data_seg_delta = const DATA_SEG_DELTA,
+            lateout("ax") _,
         );
         cli();
 
@@ -244,19 +252,138 @@ pub unsafe fn restore_timer() {
 unsafe extern "C" fn timer_isr() {
     naked_asm!(
         "cld",
+        "pushal",
         "push ds",
         "push es",
-        "pushal",
-        "push cs",
-        "pop ds",
-        "push ds",
-        "pop es",
+        "mov ax, cs",
+        "add ax, {data_seg_delta}",
+        "mov ds, ax",
+        "mov es, ax",
+        "push word ptr [{w6352}]",
+        "push word ptr [{w6354}]",
+        "push word ptr [{w6356}]",
+        "push word ptr [{w6358}]",
+        "push word ptr [{w635a}]",
+        "push word ptr [{w635c}]",
+        "push word ptr [{w635e}]",
+        "push word ptr [{w6360}]",
+        "push word ptr [{w6362}]",
+        "push word ptr [{w6364}]",
+        "push word ptr [{w6366}]",
+        "push word ptr [{w6368}]",
+        "push word ptr [{w636a}]",
+        "push word ptr [{w636c}]",
+        "push word ptr [{w636e}]",
+        "push word ptr [{w6370}]",
+        "push word ptr [{w6372}]",
+        "push word ptr [{w6374}]",
+        "push word ptr [{w6376}]",
+        "push word ptr [{w6378}]",
+        "push word ptr [{w637a}]",
+        "push word ptr [{w637c}]",
+        "push word ptr [{w637e}]",
+        "push word ptr [{w6380}]",
+        "push word ptr [{w6382}]",
+        "push word ptr [{w6384}]",
+        "push word ptr [{w6386}]",
+        "push word ptr [{w6388}]",
+        "push word ptr [{w638a}]",
+        "push word ptr [{w638c}]",
+        "push word ptr [{w638e}]",
+        "push word ptr [{w6390}]",
         "call {body}",
-        "popal",
+        "mov ax, cs",
+        "add ax, {data_seg_delta}",
+        "mov ds, ax",
+        "cmp byte ptr [{switch_context}], 0",
+        "je 2f",
+        "mov byte ptr [{switch_context}], 0",
+        "mov ax, ss",
+        "cmp ax, [{w5164}]",
+        "jne 2f",
+        "mov bp, sp",
+        "mov ax, cs",
+        "cmp word ptr ss:[bp + 0x66], ax",
+        "jne 2f",
+        "mov [{w3e1e}], sp",
+        "mov sp, [{w3e20}]",
+        "mov word ptr [{w3e1c}], 2",
+        "2:",
+        "pop word ptr [{w6390}]",
+        "pop word ptr [{w638e}]",
+        "pop word ptr [{w638c}]",
+        "pop word ptr [{w638a}]",
+        "pop word ptr [{w6388}]",
+        "pop word ptr [{w6386}]",
+        "pop word ptr [{w6384}]",
+        "pop word ptr [{w6382}]",
+        "pop word ptr [{w6380}]",
+        "pop word ptr [{w637e}]",
+        "pop word ptr [{w637c}]",
+        "pop word ptr [{w637a}]",
+        "pop word ptr [{w6378}]",
+        "pop word ptr [{w6376}]",
+        "pop word ptr [{w6374}]",
+        "pop word ptr [{w6372}]",
+        "pop word ptr [{w6370}]",
+        "pop word ptr [{w636e}]",
+        "pop word ptr [{w636c}]",
+        "pop word ptr [{w636a}]",
+        "pop word ptr [{w6368}]",
+        "pop word ptr [{w6366}]",
+        "pop word ptr [{w6364}]",
+        "pop word ptr [{w6362}]",
+        "pop word ptr [{w6360}]",
+        "pop word ptr [{w635e}]",
+        "pop word ptr [{w635c}]",
+        "pop word ptr [{w635a}]",
+        "pop word ptr [{w6358}]",
+        "pop word ptr [{w6356}]",
+        "pop word ptr [{w6354}]",
+        "pop word ptr [{w6352}]",
         "pop es",
         "pop ds",
+        "popal",
         "iret",
         body = sym timer_isr_body,
+        data_seg_delta = const DATA_SEG_DELTA,
+        switch_context = sym TIMER_SWITCH_CONTEXT,
+        w5164 = sym WORD_5164,
+        w3e1c = sym WORD_3E1C,
+        w3e1e = sym WORD_3E1E,
+        w3e20 = sym WORD_3E20,
+        w6352 = sym WORD_6352,
+        w6354 = sym WORD_6354,
+        w6356 = sym WORD_6356,
+        w6358 = sym WORD_6358,
+        w635a = sym WORD_635A,
+        w635c = sym WORD_635C,
+        w635e = sym WORD_635E,
+        w6360 = sym WORD_6360,
+        w6362 = sym WORD_6362,
+        w6364 = sym WORD_6364,
+        w6366 = sym WORD_6366,
+        w6368 = sym WORD_6368,
+        w636a = sym WORD_636A,
+        w636c = sym WORD_636C,
+        w636e = sym WORD_636E,
+        w6370 = sym WORD_6370,
+        w6372 = sym WORD_6372,
+        w6374 = sym WORD_6374,
+        w6376 = sym WORD_6376,
+        w6378 = sym WORD_6378,
+        w637a = sym WORD_637A,
+        w637c = sym WORD_637C,
+        w637e = sym WORD_637E,
+        w6380 = sym WORD_6380,
+        w6382 = sym WORD_6382,
+        w6384 = sym WORD_6384,
+        w6386 = sym WORD_6386,
+        w6388 = sym WORD_6388,
+        w638a = sym WORD_638A,
+        w638c = sym WORD_638C,
+        w638e = sym WORD_638E,
+        w6390 = sym WORD_6390,
     );
 }
 
@@ -326,11 +453,13 @@ unsafe extern "C" fn timer_isr_body() {
         asm!(
             "pushf",
             "lcall [{}]",
-            "push cs",
-            "pop ds",
-            "push ds",
-            "pop es",
+            "mov ax, cs",
+            "add ax, {data_seg_delta}",
+            "mov ds, ax",
+            "mov es, ax",
             sym ORIG_PIT_ISR,
+            data_seg_delta = const DATA_SEG_DELTA,
+            lateout("ax") _,
         );
     }
 
@@ -341,30 +470,19 @@ unsafe extern "C" fn timer_isr_body() {
         fade_step();
     }
 
-    BYTE_3E0F -= 1;
+    BYTE_3E0F = BYTE_3E0F.wrapping_sub(1);
 
-    if BYTE_3E0F >= 0 {
-        BYTE_3E0F += 6;
+    if BYTE_3E0F <= 0 {
+        BYTE_3E0F = BYTE_3E0F.wrapping_add(6);
 
         if BYTE_3E0F < 0 {
             BYTE_3E0F = 0;
         }
 
-        // TODO:
-        /*
-        if matches!(WORD_3E1C, 0 | 0x8000) {
-            // mov     ax, ss
-            // cmp     ax, [cs:word_5164]
-            // jne     loc_D63E
-            // mov     bp, sp
-            // cmp     word [bp + 56h], code_seg
-            // jnz     loc_D63E
+        if WORD_3E1C == 0 {
             sub_d9eb();
-            // mov     bx, [word_3E1C]
-            // mov     [bx + word_3E1E], sp
-            // mov     sp, [word_3E20]
-            WORD_3E1C = 2;
-        }*/
+            TIMER_SWITCH_CONTEXT = 1;
+        }
     }
 
     // loc_D63E
@@ -461,33 +579,42 @@ pub unsafe fn sub_d6f9() {
     }
 }
 
-/// D740:
-pub unsafe fn prepare_task_context() {
-    return;
-    /*
+/// D740: Build a resumable task context.
+///
+/// The original routine receives the future entry IP in AX. Keep that ABI in
+/// the naked helper, and use this wrapper so Rust call sites can pass a
+/// function item directly.
+pub unsafe fn prepare_task_context(entry: unsafe fn()) {
     asm!(
-        "mov ds, [cs:{w5162}]",
+        "call {body}",
+        in("ax") entry as *const () as usize as u16,
+        in("dx") TASK_CONTEXT_STACK_TOP,
+        body = sym prepare_task_context_from_ax,
+    );
+}
+
+#[unsafe(naked)]
+unsafe extern "C" fn prepare_task_context_from_ax() {
+    naked_asm!(
+        "mov cx, cs",
+        "add cx, {data_seg_delta}",
+        "mov ds, cx",
         "or word ptr [{w3e1c}], 0x8000",
         "mov [{w3e20}], sp",
 
-        // load new stack pointer
-        "mov sp, 0x1400",
-
-        // enable interrupts (so handlers can run briefly while switching)
+        "mov sp, dx",
         "sti",
-
-        // save flags, CS, AX and general regs / segments and push many saved words
         "pushf",
         "push cs",
         "push ax",
-        "pusha",
+        "pushal",
         "push ds",
         "push es",
 
-        // reload DS from CS:WORD_5162 (again)
-        "mov ds, [cs:{w5162}]",
+        "mov ax, cs",
+        "add ax, {data_seg_delta}",
+        "mov ds, ax",
 
-        // push the saved words block (word_6352 .. word_6390)
         "push word ptr [{w6352}]",
         "push word ptr [{w6354}]",
         "push word ptr [{w6356}]",
@@ -521,12 +648,10 @@ pub unsafe fn prepare_task_context() {
         "push word ptr [{w638e}]",
         "push word ptr [{w6390}]",
 
-        // swap SP with saved SP location: xchg sp, [word_3E20]
         "xchg sp, [{w3e20}]",
-
-        // clear the high bit in [word_3E1C] -> AND with 0x7FFF
         "and word ptr [{w3e1c}], 0x7FFF",
-        w5162 = sym WORD_5162,
+        "ret",
+        data_seg_delta = const DATA_SEG_DELTA,
         w3e1c = sym WORD_3E1C,
         w3e20 = sym WORD_3E20,
         w6352 = sym WORD_6352,
@@ -561,33 +686,36 @@ pub unsafe fn prepare_task_context() {
         w638c = sym WORD_638C,
         w638e = sym WORD_638E,
         w6390 = sym WORD_6390,
-    );*/
+    );
 }
 
 /// D7E9:
-pub unsafe fn resume_task_context() {
-    return;
-    /*
-    asm!(
-        // pop word [cs:word_516A]
-        // This pops a word from stack and stores it to the memory location WORD_516A in CS.
-        "pop word ptr cs:[{w516a}]",
+#[unsafe(naked)]
+pub unsafe extern "C" fn resume_task_context() {
+    naked_asm!(
+        "mov ax, cs",
+        "add ax, {data_seg_delta}",
+        "mov ds, ax",
+        "pop word ptr [{w516a}]",
+        "pop word ptr [{wret_hi}]",
+        "cmp word ptr [{w3e1e}], 0",
+        "jne 2f",
+        "push word ptr [{wret_hi}]",
+        "push word ptr [{w516a}]",
+        "ret",
+        "2:",
 
-        // pushf ; push flags to stack
         "pushf",
-        // push cs ; push CS
         "push cs",
-        // push word [cs:word_516A] ; push the value we just stored
-        "push word ptr cs:[{w516a}]",
-        // pusha ; save general registers
-        "pusha",
+        "push word ptr [{w516a}]",
+        "pushal",
         "push ds",
         "push es",
 
-        // DS = [cs:WORD_5162]
-        "mov ds, [cs:{w5162}]",
+        "mov ax, cs",
+        "add ax, {data_seg_delta}",
+        "mov ds, ax",
 
-        // push large saved block (word_6352 .. word_6390)
         "push word ptr [{w6352}]",
         "push word ptr [{w6354}]",
         "push word ptr [{w6356}]",
@@ -621,22 +749,15 @@ pub unsafe fn resume_task_context() {
         "push word ptr [{w638e}]",
         "push word ptr [{w6390}]",
 
-        // cli
         "cli",
-
-        // mov [word_3E20], sp
         "mov [{w3e20}], sp",
-
-        // mov word [word_3E1C], 0
         "mov word ptr [{w3e1c}], 0",
-
-        // mov sp, [word_3E1E]
         "mov sp, [{w3e1e}]",
 
-        // mov ds, [cs:word_5162]
-        "mov ds, [cs:{w5162}]",
+        "mov ax, cs",
+        "add ax, {data_seg_delta}",
+        "mov ds, ax",
 
-        // pop the saved block in reverse order (restore into the memory words)
         "pop word ptr [{w6390}]",
         "pop word ptr [{w638e}]",
         "pop word ptr [{w638c}]",
@@ -670,16 +791,13 @@ pub unsafe fn resume_task_context() {
         "pop word ptr [{w6354}]",
         "pop word ptr [{w6352}]",
 
-        // pop es
         "pop es",
-        // pop ds
         "pop ds",
-        // popa
-        "popa",
-        // iret
+        "popal",
         "iret",
-        w5162 = sym WORD_5162,
+        data_seg_delta = const DATA_SEG_DELTA,
         w516a = sym WORD_516A,
+        wret_hi = sym TASK_RETURN_IP_HIGH,
         w6352 = sym WORD_6352,
         w6354 = sym WORD_6354,
         w6356 = sym WORD_6356,
@@ -715,18 +833,12 @@ pub unsafe fn resume_task_context() {
         w3e20 = sym WORD_3E20,
         w3e1c = sym WORD_3E1C,
         w3e1e = sym WORD_3E1E,
-        options(noreturn, nostack)
-    );*/
+    );
 }
 
 pub unsafe fn sub_d915() {
     WORD_3E1C = 0x8000;
-    // pop     ax                         ; ax = return point from sub_D915
-    // mov     sp, 1800h
-    // push    ax
-
-    // mov ax, sub_D926
-    prepare_task_context();
+    prepare_task_context(sub_d926);
 }
 
 pub unsafe fn sub_d926() {
@@ -743,9 +855,11 @@ pub unsafe fn sub_d92b() {
     }
 
     let bx = if WORD_3E22 != 0 { WORD_3E22 } else { 916 };
-    let ax = read_word(WORD_63BE, bx); // TODO: just read the word from WORD_63BE
 
-    if ax == 0xFFFF {
+    let al = ARC_HEADER_SEG[bx as usize];
+    let ah = ARC_HEADER_SEG[(bx as usize) + 1];
+
+    if (ah, al) == (0xFF, 0xFF) {
         PLAYING_DEMO = 0;
         loc_5283();
 
@@ -753,25 +867,23 @@ pub unsafe fn sub_d92b() {
     }
 
     WORD_3E22 = bx + 2;
-    CFG.byte_16fe = ax.to_le_bytes()[0];
-    CFG.byte_1715 = ax.to_le_bytes()[1];
+    CFG.byte_16fe = al;
+    CFG.byte_1715 = ah;
 }
 
 pub unsafe fn sub_d962() {
     // player 1
     CFG.byte_16fe = sub_d989(match CFG.word_16ff {
-        0 => sub_d99e(&CFG.p1_kbd),
-        1 => sub_d9b4(&CFG.p1_joy),
-        2 => sub_dad1(),
-        _ => unreachable!(),
+        Controls::Keyboard => sub_d99e(&CFG.p1_kbd),
+        Controls::Joystick => sub_d9b4(&CFG.p1_joy),
+        Controls::Mouse => sub_dad1(),
     });
 
     // player 2
     CFG.byte_1715 = sub_d989(match CFG.word_1716 {
-        0 => sub_d99e(&CFG.p2_kbd),
-        1 => sub_d9b4(&CFG.p2_joy),
-        2 => sub_dad1(),
-        _ => unreachable!(),
+        Controls::Keyboard => sub_d99e(&CFG.p2_kbd),
+        Controls::Joystick => sub_d9b4(&CFG.p2_joy),
+        Controls::Mouse => sub_dad1(),
     });
 }
 
@@ -836,7 +948,7 @@ pub unsafe fn sub_d9eb() {
         *w = w.wrapping_add(cf.into());
     }
 
-    for _ in 0..=CFG.word_16fa.max(0x1000) {
+    for _ in 0..=CFG.word_16fa.min(0x1000) {
         ror_adc(&mut al, &mut bx);
         ror_adc(&mut al, &mut bp);
         ror_adc(&mut al, &mut si);

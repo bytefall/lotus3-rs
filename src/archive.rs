@@ -44,15 +44,13 @@ pub unsafe fn arc_seek_res() -> u16 {
     ERR_STR_PTR = transmute(ARR4_3156.as_ptr());
     RES_KEY = [b' '; 8];
 
-    for (dst, src) in
-        RES_KEY.iter_mut().zip(
-            ARR4_3156
-                .iter()
-                .copied()
-                .take_while(|c| *c != 0)
-                .map(|c: u8| if c.is_ascii_lowercase() { c - b' ' } else { c }),
-        )
-    {
+    for (dst, src) in RES_KEY.iter_mut().zip(
+        ARR4_3156
+            .iter()
+            .copied()
+            .take_while(|c| *c != 0)
+            .map(|c: u8| if c.is_ascii_lowercase() { c - b' ' } else { c }),
+    ) {
         *dst = src;
     }
 
@@ -106,7 +104,6 @@ pub unsafe fn res_load(chr: u8, ix: u8) -> Vec<u8> {
     // res_load -> arc_get_res
     sub_c96d(chr, ix);
     let len = arc_seek_res();
-    DAT_FILE_HANDLE = ARC_FILE_HANDLE;
 
     let mut buf = vec![0; len.into()];
     let len = file_read(ARC_FILE_HANDLE, &mut buf);
@@ -130,8 +127,8 @@ const fn create_table<const N: usize>() -> [(u16, u16); N] {
 }
 
 /// CA67: Unpack the resource.
-pub fn arc_unpack_res(data: impl AsRef<[u8]>) -> Option<Vec<u8>> {
-    let mut data = data.as_ref().iter().cloned();
+pub fn arc_unpack_res(data: &[u8]) -> Option<Vec<u8>> {
+    let mut data = data.iter().cloned();
 
     let len = data.next().filter(|x| x != &0)?;
     let end = data.next()?;

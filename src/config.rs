@@ -16,11 +16,11 @@ pub struct Config {
     pub word_16fa: u16,             // 16FA
     pub word_16fc: u16,             // 16FC
     pub byte_16fe: u8,              // 16FE
-    pub word_16ff: u16,             // 16FF
+    pub word_16ff: Controls,        // 16FF
     pub p1_kbd: [u8; 6],            // 1701: left, right, gear up, gear down, accel, brake
     pub p1_joy: JoyState,           // 1707
     pub byte_1715: u8,              // 1715
-    pub word_1716: u16,             // 1716
+    pub word_1716: Controls,        // 1716
     pub p2_kbd: [u8; 6],            // 1718: left, right, gear up, gear down, accel, brake
     pub p2_joy: JoyState,           // 171E
     pub arr_172c: [u8; 128],        // 172C
@@ -51,11 +51,11 @@ impl Config {
             word_16fa: 0,
             word_16fc: 0,
             byte_16fe: 0,
-            word_16ff: 0,
+            word_16ff: Controls::Keyboard,
             p1_kbd: [0x4B, 0x4D, 0x48, 0x50, 0x1C, 0x52],
             p1_joy: JoyState::new(),
             byte_1715: 0,
-            word_1716: 0,
+            word_1716: Controls::Keyboard,
             p2_kbd: [0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F],
             p2_joy: JoyState::new(),
             arr_172c: [0; 128],
@@ -583,12 +583,22 @@ impl Model {
     }
 }
 
+#[repr(u16)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum SoundSettings {
+    SoundBlaster = 0,
     Adlib = 1,
-    SoundBlaster = 2,
+    Roland = 2,
     PcSpeaker = 3,
     Off = 4,
+}
+
+#[repr(u16)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Controls {
+    Keyboard = 0,
+    Joystick = 1,
+    Mouse = 2,
 }
 
 pub struct Score {
@@ -629,4 +639,10 @@ impl JoyState {
             word12: 0,
         }
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Player {
+    One,
+    Two,
 }

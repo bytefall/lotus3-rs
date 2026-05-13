@@ -16,7 +16,6 @@ pub struct BmpItem {
 }
 
 pub type BmpVec = StackVec<BmpItem, 40>;
-// pub type BmpVec = Vec<BmpItem>;
 
 /// C505:
 unsafe fn bmp_load_and_prepare(chr: u8, ix: u8) -> BmpVec {

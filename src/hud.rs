@@ -10,7 +10,7 @@ pub const VGA_SIZE: usize = VGA_WIDTH * VGA_HEIGHT;
 pub static mut VGA_DBL_BUF: Vec<u8> = Vec::new(); // 63BC
 
 /// 8EDE: Print text
-pub unsafe fn print_string<const MAX_LEN: usize>(text: &[u8; MAX_LEN], y: usize, font: &BmpVec) {
+pub unsafe fn print_string(text: &[u8], y: usize, font: &BmpVec) {
     let mut pos = Point::xy((VGA_WIDTH - text.len() * 8) / 2, y);
 
     for chr in text {

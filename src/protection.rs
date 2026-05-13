@@ -92,7 +92,7 @@ pub unsafe fn protection_screen() {
 
     // loc_2FF5
     let [bgr, helmets] = load_resource_series(b'I', &PROT_RES_IDS);
-    draw_sprite(res_unpack_with_pal(&bgr), Size::full(), Point::start());
+    draw_sprite(&res_unpack_with_pal(&bgr), Size::full(), Point::start());
 
     let helmets = res_unpack_simple(&helmets);
     draw_sprite(
